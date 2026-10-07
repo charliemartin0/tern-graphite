@@ -1,0 +1,127 @@
+{
+  "acme/widgets": {
+    "result": {
+      "status": "ok",
+      "prs": [
+        {
+          "prNumber": 101,
+          "title": "feat: add widget schema",
+          "authorGithubHandle": "alice",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/101",
+          "headRefName": "feat/widget-schema",
+          "baseRefName": "main",
+          "isDraft": false,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 102,
+          "title": "feat: widget API",
+          "authorGithubHandle": "alice",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/102",
+          "headRefName": "feat/widget-api",
+          "baseRefName": "feat/widget-schema",
+          "isDraft": false,
+          "dependentPrNumber": 101,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 103,
+          "title": "feat: widget UI",
+          "authorGithubHandle": "alice",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/103",
+          "headRefName": "feat/widget-ui",
+          "baseRefName": "feat/widget-api",
+          "isDraft": false,
+          "dependentPrNumber": 102,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 110,
+          "title": "fix: retry flaky import",
+          "authorGithubHandle": "you",
+          "state": "OPEN",
+          "reviewDecision": "CHANGES_REQUESTED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/110",
+          "headRefName": "fix/import-retry",
+          "baseRefName": "main",
+          "isDraft": false,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 112,
+          "title": "refactor: split parser",
+          "authorGithubHandle": "you",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/112",
+          "headRefName": "refactor/split-parser",
+          "baseRefName": "main",
+          "isDraft": false,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 113,
+          "title": "feat: streaming parser",
+          "authorGithubHandle": "you",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/113",
+          "headRefName": "feat/streaming-parser",
+          "baseRefName": "refactor/split-parser",
+          "isDraft": false,
+          "dependentPrNumber": 112,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 115,
+          "title": "wip: new settings page",
+          "authorGithubHandle": "you",
+          "state": "OPEN",
+          "reviewDecision": "REVIEW_REQUIRED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/115",
+          "headRefName": "wip/settings-page",
+          "baseRefName": "main",
+          "isDraft": true,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 99,
+          "title": "chore: bump deps",
+          "authorGithubHandle": "you",
+          "state": "MERGED",
+          "reviewDecision": "APPROVED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/99",
+          "headRefName": "chore/bump-deps",
+          "baseRefName": "main",
+          "isDraft": false,
+          "cliTrunk": "main"
+        }
+      ]
+    }
+  },
+  "acme/gadgets": {
+    "result": {
+      "status": "ok",
+      "prs": [
+        {
+          "prNumber": 57,
+          "title": "fix: gadget timeout",
+          "authorGithubHandle": "bob",
+          "state": "OPEN",
+          "reviewDecision": "APPROVED",
+          "url": "https://app.graphite.com/github/pr/acme/gadgets/57",
+          "headRefName": "fix/gadget-timeout",
+          "baseRefName": "main",
+          "isDraft": false,
+          "cliTrunk": "main"
+        }
+      ]
+    }
+  }
+}

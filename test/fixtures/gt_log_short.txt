@@ -1,0 +1,7 @@
+◯      feat/widget-ui
+◯      feat/widget-api
+◯      feat/widget-schema
+│ ◯    feat/streaming-parser
+│ ◯    refactor/split-parser (needs restack)
+│ │ ◯  wip/settings-page (frozen)
+◯─┴─┘  main

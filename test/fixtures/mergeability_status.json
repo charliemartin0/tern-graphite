@@ -1,0 +1,18 @@
+{
+  "acme/widgets": {
+    "mergeabilityStatuses": [
+      { "prNumber": 101, "forgeSource": "github", "mergeabilityStatus": "NEEDS_APPROVALS" },
+      { "prNumber": 102, "forgeSource": "github", "mergeabilityStatus": "NEEDS_APPROVALS" },
+      { "prNumber": 103, "forgeSource": "github", "mergeabilityStatus": "WAITING_ON_DOWNSTACK" },
+      { "prNumber": 110, "forgeSource": "github", "mergeabilityStatus": "CHANGES_REQUESTED" },
+      { "prNumber": 112, "forgeSource": "github", "mergeabilityStatus": "FAILING_REQUIRED" },
+      { "prNumber": 113, "forgeSource": "github", "mergeabilityStatus": "UNRESOLVED_COMMENTS" },
+      { "prNumber": 115, "forgeSource": "github", "mergeabilityStatus": "NEEDS_REVIEWERS" }
+    ]
+  },
+  "acme/gadgets": {
+    "mergeabilityStatuses": [
+      { "prNumber": 57, "forgeSource": "github", "mergeabilityStatus": "READY_TO_MERGE" }
+    ]
+  }
+}

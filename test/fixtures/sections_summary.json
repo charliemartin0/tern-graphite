@@ -1,0 +1,142 @@
+{
+  "host": { "kind": "CLOUD" },
+  "sections": [
+    {
+      "name": "Needs your review",
+      "sectionId": "sec-needs",
+      "includeInTotalCount": true,
+      "totalUnpaginatedPrs": 4,
+      "prs": [
+        {
+          "number": 103,
+          "title": "feat: widget UI",
+          "state": "OPEN",
+          "createdAt": "2026-10-01T08:00:00.000Z",
+          "updatedAt": "2026-10-01T11:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "alice", "avatarUrl": "https://example.com/alice.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        },
+        {
+          "number": 102,
+          "title": "feat: widget API",
+          "state": "OPEN",
+          "createdAt": "2026-10-01T07:00:00.000Z",
+          "updatedAt": "2026-10-01T10:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "alice", "avatarUrl": "https://example.com/alice.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        },
+        {
+          "number": 101,
+          "title": "feat: add widget schema",
+          "state": "OPEN",
+          "createdAt": "2026-10-01T06:00:00.000Z",
+          "updatedAt": "2026-10-01T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "alice", "avatarUrl": "https://example.com/alice.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        },
+        {
+          "number": 57,
+          "title": "fix: gadget timeout",
+          "state": "OPEN",
+          "createdAt": "2026-10-02T06:00:00.000Z",
+          "updatedAt": "2026-10-02T09:00:00.000Z",
+          "repo": { "name": "gadgets", "owner": "acme" },
+          "author": { "name": null, "login": "bob", "avatarUrl": "https://example.com/bob.png" },
+          "reviewDecision": "APPROVED"
+        }
+      ]
+    },
+    {
+      "name": "Returned to you",
+      "sectionId": "sec-returned",
+      "includeInTotalCount": true,
+      "totalUnpaginatedPrs": 1,
+      "prs": [
+        {
+          "number": 110,
+          "title": "fix: retry flaky import",
+          "state": "OPEN",
+          "createdAt": "2026-10-03T06:00:00.000Z",
+          "updatedAt": "2026-10-03T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "you", "avatarUrl": "https://example.com/you.png" },
+          "reviewDecision": "CHANGES_REQUESTED"
+        }
+      ]
+    },
+    {
+      "name": "Drafts",
+      "sectionId": "sec-drafts",
+      "includeInTotalCount": false,
+      "totalUnpaginatedPrs": 1,
+      "prs": [
+        {
+          "number": 115,
+          "title": "wip: new settings page",
+          "state": "OPEN",
+          "createdAt": "2026-10-06T06:00:00.000Z",
+          "updatedAt": "2026-10-06T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "you", "avatarUrl": "https://example.com/you.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        }
+      ]
+    },
+    {
+      "name": "Approved",
+      "sectionId": "sec-approved",
+      "includeInTotalCount": false,
+      "totalUnpaginatedPrs": 0,
+      "prs": []
+    },
+    {
+      "name": "Waiting for reviewers",
+      "sectionId": "sec-waiting",
+      "includeInTotalCount": false,
+      "totalUnpaginatedPrs": 2,
+      "prs": [
+        {
+          "number": 113,
+          "title": "feat: streaming parser",
+          "state": "OPEN",
+          "createdAt": "2026-10-05T06:00:00.000Z",
+          "updatedAt": "2026-10-05T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "you", "avatarUrl": "https://example.com/you.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        },
+        {
+          "number": 112,
+          "title": "refactor: split parser",
+          "state": "OPEN",
+          "createdAt": "2026-10-04T06:00:00.000Z",
+          "updatedAt": "2026-10-04T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "you", "avatarUrl": "https://example.com/you.png" },
+          "reviewDecision": "REVIEW_REQUIRED"
+        }
+      ]
+    },
+    {
+      "name": "Merging and recently merged",
+      "sectionId": "sec-merging",
+      "includeInTotalCount": false,
+      "totalUnpaginatedPrs": 1,
+      "prs": [
+        {
+          "number": 99,
+          "title": "chore: bump deps",
+          "state": "MERGED",
+          "createdAt": "2026-10-03T06:00:00.000Z",
+          "updatedAt": "2026-10-07T09:00:00.000Z",
+          "repo": { "name": "widgets", "owner": "acme" },
+          "author": { "name": null, "login": "you", "avatarUrl": "https://example.com/you.png" },
+          "reviewDecision": "APPROVED"
+        }
+      ]
+    }
+  ]
+}

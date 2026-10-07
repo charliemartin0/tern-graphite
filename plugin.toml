@@ -1,0 +1,12 @@
+schema = 1
+id = "graphite"
+name = "graphite"
+version = "0.2.0"
+description = "Your Graphite PR inbox (signed in through the gt CLI) and the current repo's stack, with gt actions and a send-to-agent prompt."
+icon = "git-pull"
+host = "host.luau"
+window = "window.luau"
+
+[[blocks]]
+id = "inbox"
+title = "graphite"
