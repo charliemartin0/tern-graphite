@@ -24,12 +24,20 @@ configured to show, with a merge-status badge on every row.
   `POST /graphite/mergeability-status`), read-only. PRs that share a Graphite
   stack are grouped together with a **Send stack to agent** button; standalone
   PRs follow.
-- **Each row** shows the PR number, a title link to the Graphite PR page, author,
-  repo, branch, a merge-status badge (`ready`, `changes requested`, `CI failing`,
-  `conflicts`, `needs reviewers`, `needs restack`, `waiting on downstack`, …),
-  draft/merged/closed state, and age.
-- **Row actions**: open in Graphite; check out into a fresh git worktree (only
-  for others' open PRs with a branch); **Send to agent** (yours and others').
+- **Each row** shows the PR number and clickable title first, followed by a
+  configurable metadata line (author, repo, branch, status, age). By default
+  the title gets its own line and the branch is hidden; long titles wrap rather
+  than being truncated.
+- **Row actions**: check out into a fresh git worktree (for any open PR with a
+  branch — yours or others'; an existing worktree at the configured path is
+  reused); **Send to agent** (yours and others'). The clickable title opens the
+  PR in Graphite.
+- Pull-request detail status overrides stale section-summary status; completed
+  PRs still listed in `Drafts` are omitted.
+- **Comment counts**: rows whose merge status is `changes requested` or
+  `unresolved comments` show an unresolved review-thread count fetched via the
+  `gh` CLI (optional; the inbox renders without it). The count is available as
+  `{comments}` in prompt templates.
 - **Stack tab**: the focused repo's stack from `gt log short`, rendered as a
   tree, with the common `gt` actions (checkout, up, down, create, modify,
   submit --draft, sync, restack, move, fold, delete with confirm). Interactive
@@ -69,9 +77,16 @@ falls back to all defaults and surfaces the error in the dock.
 | `max_prs_per_section` | `50`                                                                     | `first=` sent to sections-summary; clamped to 1..100. |
 | `hidden_sections`     | `[]`                                                                     | Section names to hide (case-insensitive exact match). Hidden sections still count toward the status badge if they normally would. |
 | `agent_patterns`      | `["omp","claude","codex","aider","gemini","opencode"]`                 | Lowercased substrings matched against a pane's title/program to flag it as an agent pane. Used only if every entry is a string. |
-| `worktree_dir`        | `".gt-worktrees"`                                                        | Subdir under the repo for checkout worktrees. |
+| `pr_title_first`       | `true`                                                                   | Put the PR title on its own first line; `false` appends the configured metadata fields inline after the title. |
+| `pr_metadata_fields`   | `["author","repo","status","age"]`                                      | Metadata fields to display, in order. Allowed: `author`, `repo`, `branch`, `status`, `age`. Add `branch` to show it; `[]` hides all metadata. |
+| `pr_branch_max_chars`  | `36`                                                                     | Maximum displayed branch length when `branch` is included; long names are middle-truncated. Clamped to 12..120. |
+| `worktree_dir`        | `".gt-worktrees"`                                                        | Subdir under the repo for checkout worktrees. Used only when `worktree_path` is empty (legacy). |
+| `worktree_path`       | `""`                                                                     | Template for the checkout worktree path. Empty → legacy `{repo_root}/{worktree_dir}/{branch}`. When set, substitutes `{repo_root}`, `{repo}`, `{branch}`, `{number}` — e.g. `"{repo_root}/../{repo}-pr{number}"` or `"~/gc/sb-pr{number}"`. |
 | `gt_path`             | `""`                                                                     | Absolute path to `gt`; empty → resolve via `command -v gt`. |
 | `tern_path`           | `""`                                                                     | Absolute path to `tern`; empty → resolve via `command -v tern`. |
+| `gh_path`             | `""`                                                                     | Absolute path to `gh`; empty → resolve via `command -v gh`. `gh` is optional — used only for unresolved-comment counts; the inbox works without it. |
+| `send_submit_default` | `false`                                                                  | Initial state of the send picker's submit toggle: `false` = paste only (review before sending), `true` = paste + Enter. |
+| `transition_toast`    | `false`                                                                  | Toast when a PR newly appears in "Needs your review" or "Returned to you". |
 | `prompts.review`       | `"Review PR #{number} {title} {url}. Don't post comments, just tell me in chat"` | Sent for someone else's PR. |
 | `prompts.address`      | `"Address the requested changes on PR #{number} {url}"`                 | Sent for your own PR. |
 | `prompts.stack_line`   | `"PR #{number} {title} {url}"`                                           | One line per PR in a stack prompt. |
@@ -79,8 +94,9 @@ falls back to all defaults and surfaces the error in the dock.
 | `prompts.address_stack` | `"Address this stack (bottom to top):\n{prs}"`                          | Stack of your own PRs. |
 
 Prompt templates substitute `{name}` with `number`, `title`, `url`, `author`,
-`branch`, `repo` (per PR) and `prs` (the joined `stack_line` lines, for stack
-prompts). Unknown `{name}` is left as-is; `%` in values is safe.
+`branch`, `repo`, `comments` (unresolved review-thread count, `"0"` when not
+fetched) per PR, and `prs` (the joined `stack_line` lines, for stack prompts).
+Unknown `{name}` is left as-is; `%` in values is safe.
 
 ## Send to agent
 
@@ -88,8 +104,17 @@ prompts). Unknown `{name}` is left as-is; `%` in values is safe.
 pane when its lowercased title or program contains any lowercased
 `agent_patterns` entry, defaults to the most recently focused agent pane (else
 the focused pane), and pastes the rendered prompt with
-`tern send <pane> paste` **without pressing Enter**, so you can review it
-before sending.
+`tern send <pane> paste`. A **Submit: paste only / paste + Enter** toggle in the
+picker controls whether Enter is then pressed (`tern send <pane> keys enter`);
+paste only is the default, so you can review the prompt before sending.
+
+## Checkout
+
+**Checkout** creates a git worktree for the PR's head branch and opens a pane in
+it. It works for others' PRs **and your own** (the main case for addressing
+review comments). The worktree location follows `worktree_path` when set, else
+the legacy `{repo_root}/{worktree_dir}/{branch}` layout. An existing worktree at
+that path is reused.
 
 ## Keys
 

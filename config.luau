@@ -20,8 +20,15 @@ export type Config = {
 	hidden_sections: { string },
 	agent_patterns: { string },
 	worktree_dir: string,
+	worktree_path: string,
 	gt_path: string,
 	tern_path: string,
+	gh_path: string,
+	send_submit_default: boolean,
+	transition_toast: boolean,
+	pr_title_first: boolean,
+	pr_metadata_fields: { string },
+	pr_branch_max_chars: number,
 	prompts: Prompts,
 }
 
@@ -31,8 +38,15 @@ local DEFAULTS: Config = {
 	hidden_sections = tern.json.array({}),
 	agent_patterns = { "omp", "claude", "codex", "aider", "gemini", "opencode" },
 	worktree_dir = ".gt-worktrees",
+	worktree_path = "",
 	gt_path = "",
 	tern_path = "",
+	gh_path = "",
+	send_submit_default = false,
+	transition_toast = false,
+	pr_title_first = true,
+	pr_metadata_fields = { "author", "repo", "status", "age" },
+	pr_branch_max_chars = 36,
 	prompts = {
 		review = "Review PR #{number} {title} {url}. Don't post comments, just tell me in chat",
 		address = "Address the requested changes on PR #{number} {url}",
@@ -65,8 +79,15 @@ local function defaults_copy(): Config
 		hidden_sections = tern.json.array({}),
 		agent_patterns = { table.unpack(d.agent_patterns) },
 		worktree_dir = d.worktree_dir,
+		worktree_path = d.worktree_path,
 		gt_path = d.gt_path,
 		tern_path = d.tern_path,
+		gh_path = d.gh_path,
+		send_submit_default = d.send_submit_default,
+		transition_toast = d.transition_toast,
+		pr_title_first = d.pr_title_first,
+		pr_metadata_fields = { table.unpack(d.pr_metadata_fields) },
+		pr_branch_max_chars = d.pr_branch_max_chars,
 		prompts = {
 			review = d.prompts.review,
 			address = d.prompts.address,
@@ -127,6 +148,24 @@ local function list_or(data: any, key: string, default: { string }): { string }
 	return out
 end
 
+local function bool_or(data: any, key: string, default: boolean): boolean
+	local v = data[key]
+	return if type(v) == "boolean" then v else default
+end
+
+local function metadata_fields_or(data: any): { string }
+	local allowed = { author = true, repo = true, branch = true, status = true, age = true }
+	local requested = list_or(data, "pr_metadata_fields", M.DEFAULTS.pr_metadata_fields)
+	local result: { string } = {}
+	local seen: { [string]: boolean } = {}
+	for _, field in requested do
+		if allowed[field] and not seen[field] then
+			table.insert(result, field)
+			seen[field] = true
+		end
+	end
+	return result
+end
 local function prompts_or(data: any, default: Prompts): Prompts
 	local p = data.prompts
 	if type(p) ~= "table" then
@@ -183,8 +222,23 @@ function M.load(): (Config, string?)
 		hidden_sections = list_or(data, "hidden_sections", M.DEFAULTS.hidden_sections),
 		agent_patterns = list_or(data, "agent_patterns", M.DEFAULTS.agent_patterns),
 		worktree_dir = str_or(data, "worktree_dir", M.DEFAULTS.worktree_dir),
+		worktree_path = str_or(data, "worktree_path", M.DEFAULTS.worktree_path),
 		gt_path = str_or(data, "gt_path", M.DEFAULTS.gt_path),
 		tern_path = str_or(data, "tern_path", M.DEFAULTS.tern_path),
+		gh_path = str_or(data, "gh_path", M.DEFAULTS.gh_path),
+		send_submit_default = (function(): boolean
+			local v = data.send_submit_default
+			if type(v) == "boolean" then return v end
+			return M.DEFAULTS.send_submit_default
+		end)(),
+		transition_toast = (function(): boolean
+			local v = data.transition_toast
+			if type(v) == "boolean" then return v end
+			return M.DEFAULTS.transition_toast
+		end)(),
+		pr_title_first = bool_or(data, "pr_title_first", M.DEFAULTS.pr_title_first),
+		pr_metadata_fields = metadata_fields_or(data),
+		pr_branch_max_chars = num_or(data, "pr_branch_max_chars", M.DEFAULTS.pr_branch_max_chars, 12, 120),
 		prompts = prompts_or(data, M.DEFAULTS.prompts),
 	}
 	return cfg, nil

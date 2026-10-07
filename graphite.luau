@@ -18,7 +18,7 @@ export type Ctx = { auth: Auth, fixture_dir: string? }
 
 local DEFAULT_API = "https://api.graphite.com/v1"
 local DEFAULT_APP = "https://app.graphite.com"
-local UA = "tern-graphite/0.2.0"
+local UA = "tern-graphite/0.3.0"
 
 -- Read a JSON file as a table, or {} on any failure.
 local function read_json_table(path: string): any

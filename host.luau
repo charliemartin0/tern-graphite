@@ -14,7 +14,7 @@ type Repo = { path: string, owner: string, name: string, nwo: string }
 type Problem = { text: string, detail: string? }
 type Confirm = { act: string, label: string, payload: string }
 type AgentPane = { id: number, title: string, program: string, focused: boolean, agent: boolean }
-type SendTarget = { prs: { common.PR }, mine: boolean }
+type SendTarget = { prs: { common.PR }, mine: boolean, submit: boolean }
 type Section = { name: string, id: string, total: number, counts: boolean, prs: { common.PR } }
 
 type State = {
@@ -24,6 +24,8 @@ type State = {
 	send: SendTarget?, send_panes: { AgentPane }?, send_loading: boolean, stack_problem: Problem?,
 	fixture: boolean, me: string?, auth: graphite.Auth?, signin: ("missing" | "rejected")?,
 	cfg: config.Config, cfg_error: string?, fixture_signedout: boolean,
+	prev_section_keys: { [string]: { [string]: boolean } }, -- section name -> set of "repo/n"
+	section_baseline: boolean,
 }
 
 local running: { [number]: State } = {}
@@ -130,6 +132,51 @@ local function assign_stacks(owner: string, name: string, info: { [number]: any 
 	end
 end
 
+-- Best-effort: fetch the unresolved review-thread count for PRs whose merge
+-- status is CHANGES_REQUESTED or UNRESOLVED_COMMENTS, via the gh CLI's
+-- GraphQL endpoint. Sets pr.comments and re-renders. No-op when `gh` is
+-- missing/unauthed or in fixture mode; the inbox stays usable without it.
+local function fetch_comment_counts_impl(state: State, sections: { Section })
+	if not alive(state) then return end
+	-- Collect candidate PRs (dedup by key).
+	local seen: { [string]: boolean } = {}
+	local targets: { common.PR } = {}
+	for _, sec in sections do
+		for _, pr in sec.prs do
+			if pr.merge == "CHANGES_REQUESTED" or pr.merge == "UNRESOLVED_COMMENTS" then
+				if not seen[pr.key] then seen[pr.key] = true table.insert(targets, pr) end
+			end
+		end
+	end
+	if #targets == 0 then return end
+	local gh = common.bin("gh")
+	local query = 'query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}'
+	local pending = #targets
+	for _, pr in targets do
+		local argv = { gh, "api", "graphql", "-f", "owner=" .. pr.owner, "-f", "name=" .. pr.name, "-F", "number=" .. tostring(pr.number), "-f", "query=" .. query }
+		run(argv, nil, 15000, function(status, stdout, _stderr, _to)
+			if not alive(state) then return end
+			pending -= 1
+			if status == 0 then
+				local ok, data = pcall(tern.json.decode, stdout)
+				if ok and type(data) == "table" then
+					local threads = (((data.data or {}).repository or {}).pullRequest or {}).reviewThreads or {}
+					local nodes = threads.nodes
+					if type(nodes) == "table" then
+						local unresolved = 0
+						for _, t in nodes do
+							if type(t) == "table" and t.isResolved ~= true then unresolved += 1 end
+						end
+						pr.comments = unresolved
+					end
+				end
+			end
+			if pending == 0 and alive(state) then state.cx:render() end
+		end)
+	end
+end
+fetch_comment_counts = fetch_comment_counts_impl
+
 local function fetch_inbox(state: State)
 	if not alive(state) or state.loading then return end
 	cancel_timer(state) state.loading = true state.cx:render()
@@ -216,11 +263,24 @@ local function fetch_inbox(state: State)
 			local repo_keys: { string } = {}
 			for k in by_repo do table.insert(repo_keys, k) end
 			local function commit(raw: { Section })
-				-- Apply hidden_sections (case-insensitive exact match) on both paths.
+				-- Ignore stale completed rows left in Graphite's Drafts section.
 				local hidden: { [string]: boolean } = {}
 				for _, h in state.cfg.hidden_sections do hidden[string.lower(h)] = true end
 				local shown: { Section } = {}
 				for _, sec in raw do
+					if string.lower(sec.name) == "drafts" then
+						local open_prs: { common.PR } = {}
+						local removed = 0
+						for _, pr in sec.prs do
+							if pr.state == "OPEN" then
+								table.insert(open_prs, pr)
+							else
+								removed += 1
+							end
+						end
+						sec.prs = open_prs
+						sec.total = math.max(#open_prs, sec.total - removed)
+					end
 					if not hidden[string.lower(sec.name)] then table.insert(shown, sec) end
 				end
 				state.loading = false state.signin = nil state.rate_limited_until = nil
@@ -230,7 +290,38 @@ local function fetch_inbox(state: State)
 					for _, sec in raw do if sec.counts then count += sec.total end end
 					tern.kv.set("summary", { at = state.fetched, count = count })
 				end)
+				-- Transition toast: fire when a PR newly appears in "Needs
+				-- your review" or "Returned to you". Off by default.
+				if state.cfg.transition_toast and state.section_baseline then
+					local watched = { ["needs your review"] = true, ["returned to you"] = true }
+					for _, sec in shown do
+						local key = string.lower(sec.name)
+						if watched[key] then
+							local prev = state.prev_section_keys[key] or {}
+							for _, pr in sec.prs do
+								if not prev[pr.key] then
+									state.cx:toast("info", "graphite", pr.key .. " moved into " .. sec.name)
+								end
+							end
+						end
+					end
+				end
+				-- Record this fetch's keys for the next diff.
+				local next_keys: { [string]: { [string]: boolean } } = {}
+				for _, sec in shown do
+					local k = string.lower(sec.name)
+					local set: { [string]: boolean } = {}
+					for _, pr in sec.prs do set[pr.key] = true end
+					next_keys[k] = set
+				end
+				state.prev_section_keys = next_keys
+				state.section_baseline = true
 				state.cx:render() schedule(state)
+				-- Best-effort comment-count enrichment (gh); fills pr.comments
+				-- for CHANGES_REQUESTED / UNRESOLVED_COMMENTS rows.
+				if not state.fixture then
+					fetch_comment_counts(state, shown)
+				end
 			end
 			if #repo_keys == 0 then
 				if not alive(state) then return end
@@ -253,7 +344,12 @@ local function fetch_inbox(state: State)
 						for _, pr in repo_prs do
 							local i = info[pr.number]
 							if i then
-								pr.branch = i.headRefName or "" pr.base = i.baseRefName or "" pr.isDraft = i.isDraft == true
+								if i.state == "OPEN" or i.state == "MERGED" or i.state == "CLOSED" then
+									pr.state = i.state
+								end
+								pr.branch = i.headRefName or ""
+								pr.base = i.baseRefName or ""
+								pr.isDraft = i.isDraft == true and pr.state == "OPEN"
 								local u = i.url
 								pr.url = (type(u) == "string" and u ~= "") and u or common.graphite_url((auth :: graphite.Auth).app, pr.owner, pr.name, pr.number)
 							else
@@ -336,6 +432,12 @@ local function badge(label: string, act: string, tone: string): Node
 	return n
 end
 
+-- A blank line of vertical breathing room. `ui.col`/`ui.section` only add
+-- small gaps; this gives a visible blank line between packed rows.
+local function spacer(): Node
+	return ui.text({ ui.span(" ") })
+end
+
 local MERGE_LABELS: { [string]: { string } } = {
 	CHANGES_REQUESTED = { "changes requested", "warning" },
 	UNRESOLVED_COMMENTS = { "unresolved comments", "warning" },
@@ -365,61 +467,105 @@ local function merge_label(status: string): (string, string)
 	return string.lower(string.gsub(status, "_", " ")), "muted"
 end
 
-local function pr_summary(state: State, pr: common.PR, now: number): { Span | string }
-	local out: { Span | string } = {
+local function pr_title(pr: common.PR): { Span | string }
+	return {
 		ui.span("#" .. tostring(pr.number), "strong"),
 		ui.span(" "),
 		ui.link(pr.title, pr.url),
-		ui.span("  "),
-		ui.span(pr.author, "muted"),
-		ui.span("  "),
-		ui.span(pr.name, "muted"),
 	}
-	if pr.branch and pr.branch ~= "" then
-		table.insert(out, ui.span("  "))
-		table.insert(out, ui.span(pr.branch, "muted"))
+end
+
+local function truncate_middle(text: string, max_chars: number): string
+	if #text <= max_chars then return text end
+	local kept = max_chars - 1
+	local left = math.ceil(kept / 2)
+	local right = kept - left
+	return string.sub(text, 1, left) .. "…" .. string.sub(text, #text - right + 1)
+end
+
+local function metadata_field(state: State, pr: common.PR, now: number, field: string): { Span | string }?
+	if field == "author" and pr.author ~= "" then
+		return { ui.span(pr.author, "muted") }
+	elseif field == "repo" then
+		return { ui.span(pr.name, "muted") }
+	elseif field == "branch" and pr.branch ~= "" then
+		return { ui.span(truncate_middle(pr.branch, state.cfg.pr_branch_max_chars), "muted") }
+	elseif field == "status" then
+		local out: { Span | string } = {}
+		if pr.merge then
+			local label, tone = merge_label(pr.merge)
+			table.insert(out, ui.span(label, tone))
+			if pr.comments ~= nil and pr.comments > 0 and
+				(pr.merge == "CHANGES_REQUESTED" or pr.merge == "UNRESOLVED_COMMENTS") then
+				table.insert(out, ui.span(tostring(pr.comments), tone))
+			end
+		end
+		if pr.isDraft then table.insert(out, ui.span("draft", "muted")) end
+		if pr.state == "MERGED" then
+			table.insert(out, ui.span("merged", "muted"))
+		elseif pr.state == "CLOSED" then
+			table.insert(out, ui.span("closed", "muted"))
+		end
+		if #out > 0 then return out end
+	elseif field == "age" then
+		return { ui.span(common.age(pr.updatedAt, now), "dim") }
 	end
-	if pr.merge then
-		local text, tone = merge_label(pr.merge)
-		table.insert(out, ui.span(" "))
-		table.insert(out, ui.span(text, tone))
+	return nil
+end
+
+local function pr_metadata(state: State, pr: common.PR, now: number): { Span | string }
+	local out: { Span | string } = {}
+	local has_field = false
+	for _, field in state.cfg.pr_metadata_fields do
+		local value = metadata_field(state, pr, now, field)
+		if value then
+			if has_field then table.insert(out, ui.span(" · ", "dim")) end
+			for i, span in value do
+				if i > 1 then table.insert(out, ui.span(" ")) end
+				table.insert(out, span)
+			end
+			has_field = true
+		end
 	end
-	if pr.isDraft then
-		table.insert(out, ui.span(" draft", "muted"))
-	end
-	if pr.state == "MERGED" then
-		table.insert(out, ui.span(" merged", "muted"))
-	elseif pr.state == "CLOSED" then
-		table.insert(out, ui.span(" closed", "muted"))
-	end
-	table.insert(out, ui.span("  "))
-	table.insert(out, ui.span(common.age(pr.updatedAt, now), "dim"))
-	_ = state
 	return out
 end
 
 local function pr_actions(state: State, pr: common.PR): Node
 	local p = pr.repo .. "/" .. tostring(pr.number)
-	local buttons: { Node } = { badge("Graphite", "open:graphite:" .. p, "accent") }
-	if pr.state ~= "OPEN" then
-		-- Graphite only.
-	elseif pr.mine then
-		table.insert(buttons, badge("Send to agent", "send-mine:" .. p, "accent"))
-	else
-		if pr.branch and pr.branch ~= "" then
-			table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
-		end
-		table.insert(buttons, badge("Send to agent", "send:" .. p, "accent"))
+	local buttons: { Node } = {}
+	-- Only offer checkout when this block was opened in the PR's repo.
+	-- Keep the handler-side check too; UI visibility is not authorization.
+	if state.repo and pr.repo == state.repo.nwo and pr.branch and pr.branch ~= "" then
+		table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
 	end
-	_ = state
+	table.insert(buttons, badge("Send to agent", (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
 	return ui.row(buttons)
 end
-
-local function render_pr(state: State, pr: common.PR, now: number): Node
-	return ui.col({
-		ui.text(pr_summary(state, pr, now)),
-		pr_actions(state, pr),
-	})
+local function render_pr(state: State, pr: common.PR, now: number, stacked: boolean): Node
+	local title = pr_title(pr)
+	local metadata = pr_metadata(state, pr, now)
+	if stacked then
+		table.insert(title, 1, ui.span("↳ ", "accent"))
+	end
+	local children: { Node } = {}
+	if state.cfg.pr_title_first then
+		table.insert(children, ui.text(title))
+		if #metadata > 0 then table.insert(children, ui.text(metadata)) end
+	else
+		if #metadata > 0 then
+			table.insert(title, ui.span("  ·  ", "dim"))
+			for _, span in metadata do table.insert(title, span) end
+		end
+		table.insert(children, ui.text(title))
+	end
+	if pr.state == "OPEN" then
+		if stacked then
+			table.insert(children, ui.row({ ui.text({ ui.span("   ") }), pr_actions(state, pr) }))
+		else
+			table.insert(children, pr_actions(state, pr))
+		end
+	end
+	return ui.col(children)
 end
 
 -- Group PRs: stack buckets (2+ PRs sharing a stackId) first, ordered by
@@ -468,7 +614,12 @@ local function render_section(state: State, sec: Section, now: number): Node
 		table.insert(children, ui.text({ ui.span("Nothing here.", "muted") }))
 	else
 		local app = (state.auth and state.auth.app) or "https://app.graphite.com"
+		local first = true
 		for _, g in grouped(sec.prs) do
+			if not first then
+				table.insert(children, spacer())
+			end
+			first = false
 			if g.stack then
 				local ids: { string } = {}
 				local all_mine = true
@@ -478,12 +629,12 @@ local function render_section(state: State, sec: Section, now: number): Node
 				end
 				local payload = "send-stack:" .. (if all_mine then "mine" else "rev") .. ":" .. table.concat(ids, ",")
 				table.insert(children, ui.row({
-					ui.text({ ui.span("Stack · " .. tostring(#g.prs) .. " PRs", "muted") }),
+					ui.text({ ui.span("Stack · " .. tostring(#g.prs) .. " PRs", "strong accent") }),
 					badge("Send stack to agent", payload, "accent"),
 				}))
 			end
 			for _, pr in g.prs do
-				table.insert(children, render_pr(state, pr, now))
+				table.insert(children, render_pr(state, pr, now, g.stack))
 			end
 		end
 		if sec.total > #sec.prs then
@@ -501,7 +652,10 @@ end
 
 local function render_inbox(state: State, now: number): Node
 	local children: { Node } = {}
-	for _, sec in state.sections do
+	for i, sec in state.sections do
+		if i > 1 then
+			table.insert(children, spacer())
+		end
 		table.insert(children, render_section(state, sec, now))
 	end
 	return ui.col(children)
@@ -597,7 +751,7 @@ end
 local function render_confirm(state: State): Node
 	local c = state.confirm :: Confirm
 	local head: { Span | string } = { ui.span("Confirm: ", "strong"), ui.span(c.label, "warning") }
-	return ui.card({ ui.span("Confirm") }, { ui.text(head), ui.row({ badge("Yes, " .. c.label, "confirm-yes", "error"), badge("Cancel", "confirm-no", "muted") }) })
+	return ui.card({ ui.span("Confirm") }, { ui.text(head), spacer(), ui.row({ badge("Yes, " .. c.label, "confirm-yes", "error"), badge("Cancel", "confirm-no", "muted") }) })
 end
 
 local function render_send_picker(state: State): Node
@@ -632,10 +786,15 @@ local function render_send_picker(state: State): Node
 		return ui.col({ head, ui.progress(nil, "Listing panes…") })
 	end
 	local panes = state.send_panes or {}
+	-- Submit toggle: paste-only (default) vs paste + Enter.
+	local submit = state.send.submit
+	local toggle_label = if submit then "Submit: paste + Enter  (on)" else "Submit: paste only  (off)"
+	local toggle_tone = if submit then "accent" else "muted"
+	local toggle = badge(toggle_label, "send-toggle-submit", toggle_tone)
 	if #panes == 0 then
-		return ui.col({ head, ui.text({ ui.span("No live panes found (run `tern` with a window).", "muted") }) })
+		return ui.col({ head, spacer(), ui.row({ toggle }), spacer(), ui.text({ ui.span("No live panes found (run `tern` with a window).", "muted") }) })
 	end
-	local children: { Node } = { head }
+	local children: { Node } = { head, spacer(), ui.row({ toggle }), spacer() }
 	for _, p in panes do
 		local label = (p.title or "(untitled)") .. "  " .. (p.program or "")
 		local tone = if p.focused then "accent" else if p.agent then "success" else "muted"
@@ -703,7 +862,9 @@ local function stack_view(state: State): Node
 		table.insert(parts, ui.text({ ui.span(state.stack_problem.text, "warning") }))
 	end
 	table.insert(parts, render_stack_tree(state))
+	table.insert(parts, spacer())
 	table.insert(parts, ui.rule({}))
+	table.insert(parts, spacer())
 	table.insert(parts, stack_actions(state))
 	return ui.col(parts)
 end
@@ -718,7 +879,7 @@ local function main_view(state: State): Node
 		tab_button("Inbox", "tab:inbox", state.tab == "inbox"),
 		tab_button("Stack", "tab:stack", state.tab == "stack"),
 	})
-	return ui.col({ tabs, ui.rule({}), body })
+	return ui.col({ tabs, spacer(), ui.rule({}), spacer(), body })
 end
 -- ---------- actions ----------
 
@@ -744,7 +905,20 @@ local function do_checkout(state: State, pr: common.PR)
 		state.cx:toast("error", "No branch for this PR", "Graphite returned no head branch.")
 		return
 	end
-	local wt = r.path .. "/" .. state.cfg.worktree_dir .. "/" .. pr.branch
+	-- Resolve the worktree path. A non-empty `worktree_path` template wins
+	-- (vars: {repo_root}, {repo}, {branch}, {number}); otherwise fall back
+	-- to the legacy `{repo_root}/{worktree_dir}/{branch}` layout.
+	local wt: string
+	if state.cfg.worktree_path and state.cfg.worktree_path ~= "" then
+		wt = config.render(state.cfg.worktree_path, {
+			repo_root = r.path,
+			repo = r.name,
+			branch = pr.branch,
+			number = tostring(pr.number),
+		})
+	else
+		wt = r.path .. "/" .. state.cfg.worktree_dir .. "/" .. pr.branch
+	end
 	local function open_wt() open_pane(state, wt, "") end
 	local function add_worktree()
 		run({ "git", "-C", r.path, "worktree", "add", "-f", wt, pr.branch }, nil, 15000, function(status, _out, stderr, _to)
@@ -816,14 +990,26 @@ local function list_panes(state: State)
 	end)
 end
 
-local function send_to_pane(state: State, pane_id: number, text: string)
+local function send_to_pane(state: State, pane_id: number, text: string, submit: boolean)
 	run({ common.bin("tern"), "send", tostring(pane_id), "paste", text }, nil, common.TERN_TIMEOUT_MS, function(status, _out, stderr, _to)
 		if not alive(state) then return end
-		if status == 0 then
-			state.cx:toast("success", "Sent to agent", "Pasted into pane " .. tostring(pane_id) .. " (Enter not pressed).")
-		else
+		if status ~= 0 then
 			state.cx:toast("error", "tern send failed", first_lines(stderr, 3))
+			return
 		end
+		if not submit then
+			state.cx:toast("success", "Sent to agent", "Pasted into pane " .. tostring(pane_id) .. " (Enter not pressed).")
+			return
+		end
+		-- Press Enter in the target pane to submit the prompt.
+		run({ common.bin("tern"), "send", tostring(pane_id), "keys", "enter" }, nil, common.TERN_TIMEOUT_MS, function(s2, _o2, e2, _t2)
+			if not alive(state) then return end
+			if s2 == 0 then
+				state.cx:toast("success", "Sent to agent", "Pasted + submitted into pane " .. tostring(pane_id) .. ".")
+			else
+				state.cx:toast("warning", "Pasted but Enter failed", first_lines(e2, 3))
+			end
+		end)
 	end)
 end
 
@@ -835,6 +1021,7 @@ local function pr_vars(pr: common.PR): { [string]: string }
 		author = pr.author,
 		branch = pr.branch,
 		repo = pr.repo,
+		comments = tostring(pr.comments or 0),
 	}
 end
 
@@ -907,11 +1094,16 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 	if act == "send-cancel" then
 		state.send = nil state.send_panes = nil cx:render() return
 	end
+	if act == "send-toggle-submit" then
+		local o = state.send
+		if o then o.submit = not o.submit cx:render() end
+		return
+	end
 	if string.sub(act, 1, 10) == "send-pick:" then
 		local id = tonumber(string.sub(act, 11)) or 0
 		local o = state.send
 		if o and id ~= 0 then
-			send_to_pane(state, id, prompt_for(o.prs, o.mine, state.cfg))
+			send_to_pane(state, id, prompt_for(o.prs, o.mine, state.cfg), o.submit)
 		end
 		state.send = nil state.send_panes = nil cx:render() return
 	end
@@ -931,7 +1123,7 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 		end
 		if #prs == 0 then return end
 		table.sort(prs, function(a, b) return (a.stackDepth or 0) < (b.stackDepth or 0) end)
-		state.send = { prs = prs, mine = mine }
+		state.send = { prs = prs, mine = mine, submit = state.cfg.send_submit_default }
 		list_panes(state)
 		cx:render() return
 	end
@@ -951,7 +1143,7 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 		do_checkout(state, pr) return
 	end
 	if kind == "send" or kind == "send-mine" then
-		state.send = { prs = { pr }, mine = (kind == "send-mine") }
+		state.send = { prs = { pr }, mine = (kind == "send-mine"), submit = state.cfg.send_submit_default }
 		list_panes(state)
 		cx:render() return
 	end
@@ -1023,6 +1215,8 @@ tern.block.define("inbox", {
 			cfg = cfg,
 			cfg_error = cfg_error,
 			fixture_signedout = _args and _args[2] == "signedout",
+			prev_section_keys = {},
+			section_baseline = false,
 		}
 		running[cx.pane] = state
 		common.resolve_bins(state.cfg, function()

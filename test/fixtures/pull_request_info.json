@@ -80,14 +80,26 @@
         },
         {
           "prNumber": 115,
-          "title": "wip: new settings page",
+          "title": "fix(pca): align heatmaps and executive summary labels across the analytics dashboard",
           "authorGithubHandle": "you",
           "state": "OPEN",
           "reviewDecision": "REVIEW_REQUIRED",
           "url": "https://app.graphite.com/github/pr/acme/widgets/115",
-          "headRefName": "wip/settings-page",
+          "headRefName": "10-07-feat_platform-map_separate_panels_and_poi_filters_reposition_search_add_create_plan_button",
           "baseRefName": "main",
           "isDraft": true,
+          "cliTrunk": "main"
+        },
+        {
+          "prNumber": 6637,
+          "title": "fix(pca): align heatmaps and executive summary labels",
+          "authorGithubHandle": "you",
+          "state": "MERGED",
+          "reviewDecision": "APPROVED",
+          "url": "https://app.graphite.com/github/pr/acme/widgets/6637",
+          "headRefName": "feat/sp-1905-heatmap-order",
+          "baseRefName": "main",
+          "isDraft": false,
           "cliTrunk": "main"
         },
         {

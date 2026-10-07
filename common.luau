@@ -30,6 +30,7 @@ export type PR = {
 	updatedAt: number,
 	reviewDecision: string?, -- "APPROVED"|"REVIEW_REQUIRED"|"CHANGES_REQUESTED"|nil
 	merge: string?, -- mergeabilityStatus value
+	comments: number?, -- unresolved review-thread count (via gh), when fetched
 	stackId: string?,
 	stackDepth: number?,
 }
@@ -83,16 +84,16 @@ end
 local BINS: { [string]: string }? = nil
 M.BINS = nil
 
--- Resolve `gt` and `tern` once. Uses cfg.gt_path / cfg.tern_path when set,
--- otherwise `command -v <tool>` via a login shell, otherwise the bare name.
--- Idempotent: a no-op after the first call completes.
+-- Resolve `gt`, `tern` and `gh` once. Uses cfg.gt_path / cfg.tern_path /
+-- cfg.gh_path when set, otherwise `command -v <tool>` via a login shell,
+-- otherwise the bare name. Idempotent: a no-op after the first call completes.
 function M.resolve_bins(cfg: any, done: () -> ())
 	if BINS ~= nil then
 		done()
 		return
 	end
 	local bins: { [string]: string } = {}
-	local pending = 2
+	local pending = 3
 	local function finish_one()
 		pending -= 1
 		if pending == 0 then
@@ -129,6 +130,7 @@ function M.resolve_bins(cfg: any, done: () -> ())
 	end
 	resolve("gt", cfg.gt_path, "gt")
 	resolve("tern", cfg.tern_path, "tern")
+	resolve("gh", cfg.gh_path, "gh")
 end
 
 -- Absolute path to a tool, or the bare name as a fallback. Must be called
