@@ -181,6 +181,13 @@ sleep 20; tern ctl --control /tmp/win.sock a11y; tern ctl --control /tmp/win.soc
 Saved shots: `test/screenshots/inbox.png`, `test/screenshots/stack.png`
 (fixture mode). Do not commit a live screenshot.
 
+Checkout-scope regression (requires this checkout linked via `tern plugin link`;
+uses a fresh daemon and isolated state; needs `tern` and `jq`):
+
+```sh
+bash test/checkout_scope.sh
+```
+
 `window_start` fires once per plugin per window, so the auto-open only triggers
 on a fresh window in a daemon that hasn't already opened graphite. In normal
 interactive use you open the block via the **Open graphite** palette command.
