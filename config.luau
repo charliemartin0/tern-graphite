@@ -25,6 +25,7 @@ export type Config = {
 	tern_path: string,
 	gh_path: string,
 	send_submit_default: boolean,
+	show_checkout_button: boolean,
 	transition_toast: boolean,
 	pr_title_first: boolean,
 	pr_metadata_fields: { string },
@@ -43,6 +44,7 @@ local DEFAULTS: Config = {
 	tern_path = "",
 	gh_path = "",
 	send_submit_default = false,
+	show_checkout_button = true,
 	transition_toast = false,
 	pr_title_first = true,
 	pr_metadata_fields = { "author", "repo", "status", "age" },
@@ -83,6 +85,7 @@ local function defaults_copy(): Config
 		gt_path = d.gt_path,
 		tern_path = d.tern_path,
 		gh_path = d.gh_path,
+		show_checkout_button = d.show_checkout_button,
 		send_submit_default = d.send_submit_default,
 		transition_toast = d.transition_toast,
 		pr_title_first = d.pr_title_first,
@@ -226,6 +229,7 @@ function M.load(): (Config, string?)
 		gt_path = str_or(data, "gt_path", M.DEFAULTS.gt_path),
 		tern_path = str_or(data, "tern_path", M.DEFAULTS.tern_path),
 		gh_path = str_or(data, "gh_path", M.DEFAULTS.gh_path),
+		show_checkout_button = bool_or(data, "show_checkout_button", M.DEFAULTS.show_checkout_button),
 		send_submit_default = (function(): boolean
 			local v = data.send_submit_default
 			if type(v) == "boolean" then return v end

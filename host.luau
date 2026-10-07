@@ -533,9 +533,9 @@ end
 local function pr_actions(state: State, pr: common.PR): Node
 	local p = pr.repo .. "/" .. tostring(pr.number)
 	local buttons: { Node } = {}
-	-- Only offer checkout when this block was opened in the PR's repo.
+	-- Only offer checkout when enabled and this block was opened in the PR's repo.
 	-- Keep the handler-side check too; UI visibility is not authorization.
-	if state.repo and pr.repo == state.repo.nwo and pr.branch and pr.branch ~= "" then
+	if state.cfg.show_checkout_button and state.repo and pr.repo == state.repo.nwo and pr.branch and pr.branch ~= "" then
 		table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
 	end
 	table.insert(buttons, badge("Send to agent", (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
@@ -896,6 +896,10 @@ local function open_pane(state: State, cwd: string, command: string)
 end
 
 local function do_checkout(state: State, pr: common.PR)
+	if not state.cfg.show_checkout_button then
+		state.cx:toast("error", "Checkout is disabled", "Set show_checkout_button to true in config.json.")
+		return
+	end
 	local r = state.repo
 	if not r or pr.repo ~= r.nwo then
 		state.cx:toast("error", "Checkout only for the focused repo", "Open " .. pr.repo .. " in a pane to work there.")
