@@ -818,7 +818,7 @@ local function dock_view(state: State): Node
 		table.insert(status, ui.span("  refreshing…", "muted"))
 	end
 	if state.problem then
-		table.insert(status, ui.span("  last fetch failed", "warning"))
+		table.insert(status, ui.span("  " .. state.problem.text, "warning"))
 	end
 	if state.cfg_error then
 		table.insert(status, ui.span("  " .. state.cfg_error, "warning"))

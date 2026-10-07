@@ -34,6 +34,11 @@ configured to show, with a merge-status badge on every row.
   PR in Graphite.
 - Pull-request detail status overrides stale section-summary status; completed
   PRs still listed in `Drafts` are omitted.
+- Merge-status requests are batched at 25 PRs to avoid Graphite rejecting
+  large inboxes with HTTP 413. If detail or merge-status enrichment fails,
+  the inbox still updates and the footer shows `partial fetch: <reason>`;
+  an updated timestamp confirms the inbox list was fetched, not that every
+  enrichment request succeeded.
 - **Comment counts**: rows whose merge status is `changes requested` or
   `unresolved comments` show an unresolved review-thread count fetched via the
   `gh` CLI (optional; the inbox renders without it). The count is available as
@@ -180,6 +185,13 @@ sleep 20; tern ctl --control /tmp/win.sock a11y; tern ctl --control /tmp/win.soc
 
 Saved shots: `test/screenshots/inbox.png`, `test/screenshots/stack.png`
 (fixture mode). Do not commit a live screenshot.
+
+Checkout-scope regression (requires this checkout linked via `tern plugin link`;
+uses a fresh daemon and isolated state; needs `tern` and `jq`):
+
+```sh
+bash test/checkout_scope.sh
+```
 
 `window_start` fires once per plugin per window, so the auto-open only triggers
 on a fresh window in a daemon that hasn't already opened graphite. In normal
