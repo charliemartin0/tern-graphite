@@ -140,10 +140,11 @@ the network, so the renderer is deterministic.
 ```sh
 # From a clone of this repo:
 GRAPHITE_AUTOOPEN=fixture tern --control /tmp/win.sock . &
-sleep 6; grim test/screenshots/inbox.png; tern ctl --control /tmp/win.sock quit
+sleep 6; # float the window and resize it to 1536x864 (1920x1080 at scale 1.25)
+tern ctl --control /tmp/win.sock shot inbox && cp target/shots/tern/live/inbox.png test/screenshots/; tern ctl --control /tmp/win.sock quit
 # Stack tab:
 GRAPHITE_AUTOOPEN=fixture-stack tern --control /tmp/win.sock . &
-sleep 6; grim test/screenshots/stack.png; tern ctl --control /tmp/win.sock quit
+sleep 6; tern ctl --control /tmp/win.sock shot stack && cp target/shots/tern/live/stack.png test/screenshots/; tern ctl --control /tmp/win.sock quit
 # Signed-out card:
 GRAPHITE_AUTOOPEN=fixture-signedout tern --control /tmp/win.sock . &
 sleep 6; tern ctl --control /tmp/win.sock a11y; tern ctl --control /tmp/win.sock quit
