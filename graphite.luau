@@ -282,30 +282,41 @@ function M.pr_info(ctx: Ctx, owner: string, name: string, numbers: { number }, d
 	end)
 end
 
+-- The endpoint answers HTTP 413 for large batches (50 PRs fails, 40 works),
+-- so the PR list is split into chunks of MERGEABILITY_CHUNK.
+local MERGEABILITY_CHUNK = 25
+
 -- POST /graphite/mergeability-status. done(byNumber?, err?)
+-- Fails with the first chunk error; results from other chunks are dropped then.
 function M.mergeability(ctx: Ctx, owner: string, name: string, numbers: { number }, done: (byNumber: { [number]: string }?, err: ApiError?) -> ())
-	local body = { repoOwner = owner, repoName = name, prNumbers = numbers }
-	do_request(ctx, "POST", "/graphite/mergeability-status", body, function(data, err)
-		if err then
-			done(nil, err)
-			return
-		end
-		local statuses = data.mergeabilityStatuses
-		if type(statuses) ~= "table" then
-			done(nil, { kind = "parse", message = "mergeability-status: no mergeabilityStatuses" })
-			return
-		end
-		local out: { [number]: string } = {}
-		for _, s in statuses do
-			if type(s) == "table" and s.prNumber ~= nil then
-				local st = s.mergeabilityStatus
-				if type(st) == "string" then
-					out[s.prNumber] = st
+	local out: { [number]: string } = {}
+	local first_err: ApiError? = nil
+	local chunks = math.max(1, math.ceil(#numbers / MERGEABILITY_CHUNK))
+	local pending = chunks
+	for c = 1, chunks do
+		local batch = table.move(numbers, (c - 1) * MERGEABILITY_CHUNK + 1, math.min(c * MERGEABILITY_CHUNK, #numbers), 1, {})
+		local body = { repoOwner = owner, repoName = name, prNumbers = batch }
+		do_request(ctx, "POST", "/graphite/mergeability-status", body, function(data, err)
+			if err then
+				if not first_err then first_err = err end
+			elseif type(data.mergeabilityStatuses) ~= "table" then
+				if not first_err then first_err = { kind = "parse", message = "mergeability-status: no mergeabilityStatuses" } end
+			else
+				for _, s in data.mergeabilityStatuses do
+					if type(s) == "table" and s.prNumber ~= nil then
+						local st = s.mergeabilityStatus
+						if type(st) == "string" then
+							out[s.prNumber] = st
+						end
+					end
 				end
 			end
-		end
-		done(out, nil)
-	end)
+			pending -= 1
+			if pending == 0 then
+				if first_err then done(nil, first_err) else done(out, nil) end
+			end
+		end)
+	end
 end
 
 return M

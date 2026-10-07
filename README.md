@@ -34,6 +34,11 @@ configured to show, with a merge-status badge on every row.
   PR in Graphite.
 - Pull-request detail status overrides stale section-summary status; completed
   PRs still listed in `Drafts` are omitted.
+- Merge-status requests are batched at 25 PRs to avoid Graphite rejecting
+  large inboxes with HTTP 413. If detail or merge-status enrichment fails,
+  the inbox still updates and the footer shows `partial fetch: <reason>`;
+  an updated timestamp confirms the inbox list was fetched, not that every
+  enrichment request succeeded.
 - **Comment counts**: rows whose merge status is `changes requested` or
   `unresolved comments` show an unresolved review-thread count fetched via the
   `gh` CLI (optional; the inbox renders without it). The count is available as
