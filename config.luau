@@ -14,6 +14,9 @@ export type Prompts = {
 	address_stack: string,
 }
 
+-- "clipboard": the send buttons copy the prompt. "pane": they open the pane picker.
+export type SendMode = "clipboard" | "pane"
+
 export type Config = {
 	poll_seconds: number,
 	max_prs_per_section: number,
@@ -25,6 +28,7 @@ export type Config = {
 	tern_path: string,
 	gh_path: string,
 	send_submit_default: boolean,
+	send_mode: SendMode,
 	show_checkout_button: boolean,
 	transition_toast: boolean,
 	pr_title_first: boolean,
@@ -44,6 +48,7 @@ local DEFAULTS: Config = {
 	tern_path = "",
 	gh_path = "",
 	send_submit_default = false,
+	send_mode = "clipboard",
 	show_checkout_button = true,
 	transition_toast = false,
 	pr_title_first = true,
@@ -87,6 +92,7 @@ local function defaults_copy(): Config
 		gh_path = d.gh_path,
 		show_checkout_button = d.show_checkout_button,
 		send_submit_default = d.send_submit_default,
+		send_mode = d.send_mode,
 		transition_toast = d.transition_toast,
 		pr_title_first = d.pr_title_first,
 		pr_metadata_fields = { table.unpack(d.pr_metadata_fields) },
@@ -149,6 +155,14 @@ local function list_or(data: any, key: string, default: { string }): { string }
 		out[i] = item
 	end
 	return out
+end
+
+local function send_mode_or(data: any, default: SendMode): SendMode
+	local v = data.send_mode
+	if v == "clipboard" or v == "pane" then
+		return v
+	end
+	return default
 end
 
 local function bool_or(data: any, key: string, default: boolean): boolean
@@ -235,6 +249,7 @@ function M.load(): (Config, string?)
 			if type(v) == "boolean" then return v end
 			return M.DEFAULTS.send_submit_default
 		end)(),
+		send_mode = send_mode_or(data, M.DEFAULTS.send_mode),
 		transition_toast = (function(): boolean
 			local v = data.transition_toast
 			if type(v) == "boolean" then return v end

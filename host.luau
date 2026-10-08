@@ -530,6 +530,13 @@ local function pr_metadata(state: State, pr: common.PR, now: number): { Span | s
 	return out
 end
 
+local function send_label(state: State, stack: boolean): string
+	if state.cfg.send_mode == "clipboard" then
+		return if stack then "Copy stack prompt" else "Copy prompt"
+	end
+	return if stack then "Send stack to agent" else "Send to agent"
+end
+
 local function pr_actions(state: State, pr: common.PR): Node
 	local p = pr.repo .. "/" .. tostring(pr.number)
 	local buttons: { Node } = {}
@@ -538,7 +545,7 @@ local function pr_actions(state: State, pr: common.PR): Node
 	if state.cfg.show_checkout_button and state.repo and pr.repo == state.repo.nwo and pr.branch and pr.branch ~= "" then
 		table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
 	end
-	table.insert(buttons, badge("Send to agent", (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
+	table.insert(buttons, badge(send_label(state, false), (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
 	return ui.row(buttons)
 end
 local function render_pr(state: State, pr: common.PR, now: number, stacked: boolean): Node
@@ -630,7 +637,7 @@ local function render_section(state: State, sec: Section, now: number): Node
 				local payload = "send-stack:" .. (if all_mine then "mine" else "rev") .. ":" .. table.concat(ids, ",")
 				table.insert(children, ui.row({
 					ui.text({ ui.span("Stack · " .. tostring(#g.prs) .. " PRs", "strong accent") }),
-					badge("Send stack to agent", payload, "accent"),
+					badge(send_label(state, true), payload, "accent"),
 				}))
 			end
 			for _, pr in g.prs do
@@ -1047,6 +1054,18 @@ prompt_for = function(prs: { common.PR }, mine: boolean, cfg: config.Config): st
 	return config.render(if mine then p.address_stack else p.review_stack, { prs = joined })
 end
 
+-- Send button entry point: copy the prompt, or open the pane picker.
+local function start_send(state: State, prs: { common.PR }, mine: boolean)
+	if state.cfg.send_mode == "clipboard" then
+		state.cx:copy(prompt_for(prs, mine, state.cfg))
+		local what = if #prs == 1 then "PR #" .. tostring(prs[1].number) else tostring(#prs) .. " PRs"
+		state.cx:toast("success", "Prompt copied", what .. " — paste it into your agent.")
+		return
+	end
+	state.send = { prs = prs, mine = mine, submit = state.cfg.send_submit_default }
+	list_panes(state)
+end
+
 local function gt_pane(state: State, args: { string }, confirm: boolean, label: string)
 	if not state.repo then
 		state.cx:toast("error", "No focused repo")
@@ -1127,8 +1146,7 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 		end
 		if #prs == 0 then return end
 		table.sort(prs, function(a, b) return (a.stackDepth or 0) < (b.stackDepth or 0) end)
-		state.send = { prs = prs, mine = mine, submit = state.cfg.send_submit_default }
-		list_panes(state)
+		start_send(state, prs, mine)
 		cx:render() return
 	end
 	-- Open / send / checkout: parse "kind:repo/number".
@@ -1147,8 +1165,7 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 		do_checkout(state, pr) return
 	end
 	if kind == "send" or kind == "send-mine" then
-		state.send = { prs = { pr }, mine = (kind == "send-mine"), submit = state.cfg.send_submit_default }
-		list_panes(state)
+		start_send(state, { pr }, kind == "send-mine")
 		cx:render() return
 	end
 	-- gt actions (stack tab).
