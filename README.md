@@ -86,6 +86,7 @@ falls back to all defaults and surfaces the error in the dock.
 | `pr_metadata_fields`   | `["author","repo","status","age"]`                                      | Metadata fields to display, in order. Allowed: `author`, `repo`, `branch`, `status`, `age`. Add `branch` to show it; `[]` hides all metadata. |
 | `pr_branch_max_chars`  | `36`                                                                     | Maximum displayed branch length when `branch` is included; long names are middle-truncated. Clamped to 12..120. |
 | `show_checkout_button` | `true`                                                                  | Show the per-PR **Checkout** button in the inbox. `false` hides it and the checkout action is rejected. Does not affect the stack tab's `gt checkout`. |
+| `show_diff_button`     | `true`                                                                  | Show the per-PR **Diff** button in the inbox. Opens the PR in the `pr-tour` plugin (`pr-tour.tour`) in a new tab; works for every PR, no local checkout. `false` hides it and the diff action is rejected. |
 | `worktree_dir`        | `".gt-worktrees"`                                                        | Subdir under the repo for checkout worktrees. Used only when `worktree_path` is empty (legacy). |
 | `worktree_path`       | `""`                                                                     | Template for the checkout worktree path. Empty → legacy `{repo_root}/{worktree_dir}/{branch}`. When set, substitutes `{repo_root}`, `{repo}`, `{branch}`, `{number}` — e.g. `"{repo_root}/../{repo}-pr{number}"` or `"~/gc/sb-pr{number}"`. |
 | `gt_path`             | `""`                                                                     | Absolute path to `gt`; empty → resolve via `command -v gt`. |
@@ -126,6 +127,12 @@ it. It works for others' PRs **and your own** (the main case for addressing
 review comments). The worktree location follows `worktree_path` when set, else
 the legacy `{repo_root}/{worktree_dir}/{branch}` layout. An existing worktree at
 that path is reused.
+
+## Diff
+
+The **Diff** badge opens the PR in the `pr-tour` plugin (an AI-guided tour of the diff) in a new tab. It needs `pr-tour` linked on the same machine: `tern plugin link ~/Dev/tern-plugins/pr-tour`. Without it the button shows an error toast with that command. The host half can't create blocks, so it opens a `tern-graphite://diff/<base64url json>` link that the window half claims with `tern.route.link`.
+
+![Diff button](test/screenshots/diff-button.png)
 
 ## Keys
 
@@ -198,6 +205,7 @@ uses a fresh daemon and isolated state; needs `tern` and `jq`):
 ```sh
 bash test/checkout_scope.sh
 SHOW_CHECKOUT=false bash test/checkout_scope.sh   # expects zero Checkout badges
+SHOW_DIFF=false bash test/checkout_scope.sh       # expects zero Diff badges (default: one per open PR row)
 ```
 
 `window_start` fires once per plugin per window, so the auto-open only triggers

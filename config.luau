@@ -30,6 +30,7 @@ export type Config = {
 	send_submit_default: boolean,
 	send_mode: SendMode,
 	show_checkout_button: boolean,
+	show_diff_button: boolean,
 	transition_toast: boolean,
 	pr_title_first: boolean,
 	pr_metadata_fields: { string },
@@ -50,6 +51,7 @@ local DEFAULTS: Config = {
 	send_submit_default = false,
 	send_mode = "clipboard",
 	show_checkout_button = true,
+	show_diff_button = true,
 	transition_toast = false,
 	pr_title_first = true,
 	pr_metadata_fields = { "author", "repo", "status", "age" },
@@ -91,6 +93,7 @@ local function defaults_copy(): Config
 		tern_path = d.tern_path,
 		gh_path = d.gh_path,
 		show_checkout_button = d.show_checkout_button,
+		show_diff_button = d.show_diff_button,
 		send_submit_default = d.send_submit_default,
 		send_mode = d.send_mode,
 		transition_toast = d.transition_toast,
@@ -244,6 +247,7 @@ function M.load(): (Config, string?)
 		tern_path = str_or(data, "tern_path", M.DEFAULTS.tern_path),
 		gh_path = str_or(data, "gh_path", M.DEFAULTS.gh_path),
 		show_checkout_button = bool_or(data, "show_checkout_button", M.DEFAULTS.show_checkout_button),
+		show_diff_button = bool_or(data, "show_diff_button", M.DEFAULTS.show_diff_button),
 		send_submit_default = (function(): boolean
 			local v = data.send_submit_default
 			if type(v) == "boolean" then return v end

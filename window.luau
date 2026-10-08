@@ -57,6 +57,28 @@ tern.command({
 	run = open_shot,
 })
 
+-- Diff button: the host half opens `tern-graphite://diff/<base64url json>`
+-- through `cx:open`, which lands here. Opens pr-tour's block in a new tab.
+local DIFF_PREFIX = "tern-graphite://diff/"
+
+tern.route.link(function(link: LinkRequest, cx: WindowCx): RouteDecision?
+	if string.sub(link.url, 1, #DIFF_PREFIX) ~= DIFF_PREFIX then
+		return nil
+	end
+	local ok, d = pcall(function(): any
+		return tern.json.decode(tern.base64.decode(string.sub(link.url, #DIFF_PREFIX + 1)))
+	end)
+	if not ok or type(d) ~= "table" or type(d.repo) ~= "string" or type(d.number) ~= "string" then
+		cx:toast("error", "Bad diff link", "graphite could not decode the diff request.")
+		return { handled = true }
+	end
+	local pane = cx:new_block("pr-tour.tour", { d.repo, d.number, d.sha or "", d.title or "" }, "tab")
+	if pane == nil then
+		cx:toast("error", "pr-tour plugin isn't installed", "Link it: tern plugin link ~/Dev/tern-plugins/pr-tour")
+	end
+	return { handled = true }
+end)
+
 local function summary(): { [string]: any }?
 	local ok, s = pcall(tern.kv.get, "summary")
 	if ok and type(s) == "table" and type(s.at) == "number" then

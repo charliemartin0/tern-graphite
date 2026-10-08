@@ -70,9 +70,12 @@ show_checkout="${SHOW_CHECKOUT:-true}"
 send_mode="${SEND_MODE:-clipboard}"
 send_label="Copy prompt"
 [ "$send_mode" = "pane" ] && send_label="Send to agent"
+# SHOW_DIFF=false seeds show_diff_button=false and expects no Diff badges; the
+# default expects one Diff badge per rendered open PR (no branch/repo condition).
+show_diff="${SHOW_DIFF:-true}"
 [ "$show_checkout" = "false" ] && expect_match=0
 mkdir -p "$state/tern/plugin-data/graphite"
-jq -n --argjson c "$show_checkout" --arg m "$send_mode" '{show_checkout_button: $c, send_mode: $m}' \
+jq -n --argjson c "$show_checkout" --argjson d "$show_diff" --arg m "$send_mode" '{show_checkout_button: $c, show_diff_button: $d, send_mode: $m}' \
 	>"$state/tern/plugin-data/graphite/config.json" || { echo "FAIL: could not seed config.json"; exit 1; }
 
 # Use a fresh daemon so the test loads the linked checkout's current code, and
@@ -111,6 +114,9 @@ for _ in $(seq 1 60); do
 	sleep 0.5
 done
 checkouts=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Checkout")] | length' 2>/dev/null)
+diffs=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Diff")] | length' 2>/dev/null)
+expect_diff=$sends
+[ "$show_diff" = "false" ] && expect_diff=0
 
 if [ "$sends" -lt "$expect_total" ]; then
 	echo "FAIL: fixture did not render ($send_label rows: $sends, expected >= $expect_total)"
@@ -123,4 +129,9 @@ if [ "$checkouts" -ne "$expect_match" ]; then
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
 fi
-echo "PASS: Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); $send_label badges=$sends (send_mode=$send_mode); non-matching branch-bearing open PRs=$expect_other"
+if [ "$diffs" -ne "$expect_diff" ]; then
+	echo "FAIL: Diff badges=$diffs, expected $expect_diff (show_diff_button=$show_diff, $send_label badges=$sends)"
+	echo "--- a11y ---"; printf '%s\n' "$a11y"
+	exit 1
+fi
+echo "PASS: Diff badges=$diffs == $expect_diff (show_diff_button=$show_diff); Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); $send_label badges=$sends (send_mode=$send_mode); non-matching branch-bearing open PRs=$expect_other"
