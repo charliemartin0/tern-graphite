@@ -131,6 +131,10 @@ if [ "$sends" -lt "$expect_total" ]; then
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
 fi
+# Completed PRs can have both lifecycle and mergeability status MERGED.
+# The status field must render it once, with the age separator immediately after.
+tern ctl --control "$sock" plugins expect '"you · widgets · merged ·"' \
+	|| { echo "FAIL: merged lifecycle status was duplicated or missing"; exit 1; }
 if [ "$checkouts" -ne "$expect_match" ]; then
 	echo "FAIL: Checkout badges=$checkouts, expected $expect_match (show_checkout_button=$show_checkout, matching $focus, non-matching=$expect_other)"
 	echo "--- a11y ---"; printf '%s\n' "$a11y"

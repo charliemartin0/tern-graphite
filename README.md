@@ -1,5 +1,8 @@
 # graphite
 
+[![CI](https://github.com/charliemartin0/tern-graphite/actions/workflows/ci.yml/badge.svg)](https://github.com/charliemartin0/tern-graphite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A Tern window plugin that shows your [Graphite](https://graphite.dev) PR inbox
 and the current repo's Graphite stack.
 It signs in through the Graphite CLI's own login (`gt auth`) — no browser
@@ -13,6 +16,13 @@ configured to show, with a merge-status badge on every row.
 
 - Tern 0.6.0 or newer.
 - The Graphite CLI (`gt`), signed in via `gt auth`. See [Sign in](#sign-in).
+- `git` on `PATH` (Checkout creates worktrees with it).
+- Optional: the GitHub CLI (`gh`) for unresolved-comment counts; the
+  [pr-tour](#diff) plugin for the **Diff** button.
+
+`gt`, `tern` and `gh` are found with `command -v` in your login shell; set
+`gt_path` / `tern_path` / `gh_path` in the [config](#config) if they live
+somewhere your login shell doesn't see.
 
 ## What it does
 
@@ -30,10 +40,11 @@ configured to show, with a merge-status badge on every row.
   than being truncated.
 - **Row actions**: check out into a fresh git worktree (for any open PR with a
   branch — yours or others'; an existing worktree at the configured path is
-  reused); **Copy prompt** / **Send to agent** (see `send_mode`; yours and others'). The clickable title opens the
-  PR in Graphite.
+  reused); **Copy prompt** / **Send to agent** (see `send_mode`; yours and
+  others'). The clickable title opens the PR in Graphite.
 - Pull-request detail status overrides stale section-summary status; completed
-  PRs still listed in `Drafts` are omitted.
+  PRs still listed in `Drafts` are omitted. Merged and closed rows show only
+  their lifecycle status, not mergeability labels.
 - Merge-status requests are batched at 25 PRs to avoid Graphite rejecting
   large inboxes with HTTP 413. If detail or merge-status enrichment fails,
   the inbox still updates and the footer shows `partial fetch: <reason>`;
@@ -43,10 +54,12 @@ configured to show, with a merge-status badge on every row.
   `unresolved comments` show an unresolved review-thread count fetched via the
   `gh` CLI (optional; the inbox renders without it). The count is available as
   `{comments}` in prompt templates.
-- **Stack tab**: the focused repo's stack from `gt log short`, rendered as a
-  tree, with the common `gt` actions (checkout, up, down, create, modify,
-  submit --draft, sync, restack, move, fold, delete with confirm). Interactive
-  commands open in a normal Tern pane.
+- **Stack tab**: the focused repo's stack from `gt log short` (including the
+  branch you are on), rendered as a tree, with the common `gt` actions
+  (checkout, up, down, create, modify, submit --draft, sync, restack, move,
+  fold, delete with confirm). Interactive commands open in a normal Tern pane.
+  If `gt` prints a worktree name ending in `pr<number>` or `pr-<number>` next
+  to a branch (e.g. `(pr-123)`, `(myrepo-pr123)`), it is shown as `#123`.
 - **Sign-in card**: if you are not signed in (or your token is rejected), the
   block shows a card with a button to open the Graphite sign-in page and a
   button to open a terminal, so you can run the `gt auth --token …` command the
@@ -89,7 +102,7 @@ falls back to all defaults and surfaces the error in the dock.
 | `show_diff_button`     | `true`                                                                  | Show the per-PR **Diff** button in the inbox. Opens the PR in the `pr-tour` plugin (`pr-tour.tour`) in a new tab; works for every PR, no local checkout. `false` hides it and the diff action is rejected. The button is also hidden while the pr-tour plugin isn't detected. |
 | `diff_open`            | `"tab"`                                                                 | Where the **Diff** button opens the tour: `"tab"` (new tab), `"beside"` or `"below"` (a block next to the focused pane). Other values fall back to `"tab"`. |
 | `worktree_dir`        | `".gt-worktrees"`                                                        | Subdir under the repo for checkout worktrees. Used only when `worktree_path` is empty (legacy). |
-| `worktree_path`       | `""`                                                                     | Template for the checkout worktree path. Empty → legacy `{repo_root}/{worktree_dir}/{branch}`. When set, substitutes `{repo_root}`, `{repo}`, `{branch}`, `{number}` — e.g. `"{repo_root}/../{repo}-pr{number}"` or `"~/gc/sb-pr{number}"`. |
+| `worktree_path`       | `""`                                                                     | Template for the checkout worktree path. Empty → legacy `{repo_root}/{worktree_dir}/{branch}`. When set, substitutes `{repo_root}`, `{repo}`, `{branch}`, `{number}` and expands a leading `~` — e.g. `"{repo_root}/../{repo}-pr{number}"` or `"~/worktrees/{repo}-pr{number}"`. |
 | `gt_path`             | `""`                                                                     | Absolute path to `gt`; empty → resolve via `command -v gt`. |
 | `tern_path`           | `""`                                                                     | Absolute path to `tern`; empty → resolve via `command -v tern`. |
 | `gh_path`             | `""`                                                                     | Absolute path to `gh`; empty → resolve via `command -v gh`. `gh` is optional — used only for unresolved-comment counts; the inbox works without it. |
@@ -129,6 +142,10 @@ review comments). The worktree location follows `worktree_path` when set, else
 the legacy `{repo_root}/{worktree_dir}/{branch}` layout. An existing worktree at
 that path is reused.
 
+The legacy layout puts worktrees inside the repo, where git reports
+`.gt-worktrees/` as untracked. Either add it to `.git/info/exclude` or set
+`worktree_path` to a location outside the repo.
+
 ## Diff
 
 The **Diff** badge opens the PR in the public [pr-tour plugin](https://github.com/charliemartin0/tern-pr-tour) (an AI-guided tour of the diff) in a new tab, or as a block beside/below the focused pane with `diff_open`. It needs `pr-tour` linked on the same machine: `tern plugin link <path-to-pr-tour>`. **The button is hidden entirely while pr-tour isn't detected** (the window half checks the host's block types on start and every 30 s, so it appears within about 30 s of linking and the next inbox render). The host half can't create blocks, so it opens a `tern-graphite://diff/<base64url json>` link that the window half claims with `tern.route.link`.
@@ -143,18 +160,19 @@ The **Diff** badge opens the PR in the public [pr-tour plugin](https://github.co
 
 ```sh
 git clone https://github.com/charliemartin0/tern-graphite.git
-tern plugin link ./tern-graphite
-tern plugin reload
+cd tern-graphite
+tern plugin link .
 ```
 
-Run `tern plugin types ./tern-graphite` to regenerate `tern.d.luau` after a
-Tern SDK update. Open the block with the **Open graphite** palette command
-(action `plugin.graphite.open`); the status line shows `graphite <n>` (n = PRs
-in your counted sections, warning tone when > 0) and opens the block on click.
+Linking loads the plugin into the daemon and existing windows; no Tern restart
+is needed. Run `tern plugin types .` to regenerate `tern.d.luau` after a Tern
+SDK update. Open the block with the **Open graphite** palette command (action
+`plugin.graphite.open`); the status line shows `graphite <n>` (n = PRs in your
+counted sections, warning tone when > 0) and opens the block on click.
 
-## Limits found (read before building around them)
+## Known limitations
 
-These were confirmed against Tern 0.6.0:
+These were confirmed against Tern 0.6.0 and shape how the plugin works:
 
 1. **A plugin block runs on the host (daemon) half.** `BlockCx` has
    `toast`/`open`/`copy` and `render`, but **no** `session`/`agents`/`run`/
@@ -174,42 +192,56 @@ These were confirmed against Tern 0.6.0:
    block through a `GRAPHITE_AUTOOPEN` env var consumed by the window half's
    `window_start` hook (dev only, no effect in normal use).
 
-## Testing
+## Contributing and testing
+
+CI compiles every module with Luau and runs the unit tests on each push and pull
+request. The same checks locally, with the [Luau CLI](https://github.com/luau-lang/luau/releases)
+(CI pins 0.741):
+
+```sh
+luau-compile --null config.luau graphite.luau common.luau host.luau window.luau
+luau test/unit.luau   # gt log short parser, worktree path expansion
+```
 
 Fixture JSON lives in `test/fixtures` (synthetic: `check_auth.json`,
 `sections_summary.json`, `pull_request_info.json`, `mergeability_status.json`,
 `gt_log_short.txt`). The block's `fixture` mode reads those instead of calling
 the network, so the renderer is deterministic.
 
+Render checks and screenshots need a real Tern window. `GRAPHITE_AUTOOPEN` is a
+development-only switch (`fixture`, `fixture-stack`, `fixture-signedout`,
+`live`) that opens the block automatically when a window starts; it has no
+effect in normal use. `window_start` fires once per plugin per window, so it
+only triggers on a fresh window in a daemon that hasn't already opened
+graphite.
+
 ```sh
-# From a clone of this repo:
 GRAPHITE_AUTOOPEN=fixture tern --control /tmp/win.sock . &
-sleep 6; # float the window and resize it to 1536x864 (1920x1080 at scale 1.25)
-tern ctl --control /tmp/win.sock shot inbox && cp target/shots/tern/live/inbox.png test/screenshots/; tern ctl --control /tmp/win.sock quit
-# Stack tab:
-GRAPHITE_AUTOOPEN=fixture-stack tern --control /tmp/win.sock . &
-sleep 6; tern ctl --control /tmp/win.sock shot stack && cp target/shots/tern/live/stack.png test/screenshots/; tern ctl --control /tmp/win.sock quit
-# Signed-out card:
-GRAPHITE_AUTOOPEN=fixture-signedout tern --control /tmp/win.sock . &
-sleep 6; tern ctl --control /tmp/win.sock a11y; tern ctl --control /tmp/win.sock quit
-# Live (signed in through gt only):
-GRAPHITE_AUTOOPEN=live tern --control /tmp/win.sock /path/to/your/repo &
-sleep 20; tern ctl --control /tmp/win.sock a11y; tern ctl --control /tmp/win.sock quit
+sleep 6   # float the window and resize it to 1536x864 (1920x1080 at scale 1.25)
+tern ctl --control /tmp/win.sock shot inbox && cp target/shots/tern/live/inbox.png test/screenshots/
+tern ctl --control /tmp/win.sock quit
+# Stack tab: GRAPHITE_AUTOOPEN=fixture-stack, shot name `stack`.
+# Signed-out card: GRAPHITE_AUTOOPEN=fixture-signedout, then `tern ctl ... a11y`.
+# Live (signed in through gt only): GRAPHITE_AUTOOPEN=live tern --control /tmp/win.sock /path/to/your/repo
 ```
 
-Saved shots: `test/screenshots/inbox.png`, `test/screenshots/stack.png`
-(fixture mode). Do not commit a live screenshot.
+Saved shots live in `test/screenshots/` (fixture mode). Do not commit a live
+screenshot — it shows your real PRs.
 
-Checkout-scope regression (requires this checkout linked via `tern plugin link`;
-uses a fresh daemon and isolated state; needs `tern` and `jq`):
+`test/checkout_scope.sh` is the end-to-end regression for the Checkout, Diff and
+send buttons. It links this checkout into a private Tern config, starts its own
+daemon with isolated state (your plugin links and config are untouched), opens a
+fixture window and counts the rendered badges. It needs `tern` and `jq`:
 
 ```sh
 bash test/checkout_scope.sh
 SHOW_CHECKOUT=false bash test/checkout_scope.sh   # expects zero Checkout badges
-SHOW_DIFF=false bash test/checkout_scope.sh       # expects zero Diff badges (default: one per open PR row)
-PR_TOUR=absent bash test/checkout_scope.sh        # pr-tour not linked: expects zero Diff badges
+SHOW_DIFF=false bash test/checkout_scope.sh       # expects zero Diff badges
+SEND_MODE=pane bash test/checkout_scope.sh        # expects "Send to agent" labels
+PR_TOUR=absent bash test/checkout_scope.sh        # pr-tour not linked: zero Diff badges
+PR_TOUR_DIR=/path/to/pr-tour bash test/checkout_scope.sh   # default: ../pr-tour
 ```
 
-`window_start` fires once per plugin per window, so the auto-open only triggers
-on a fresh window in a daemon that hasn't already opened graphite. In normal
-interactive use you open the block via the **Open graphite** palette command.
+## License
+
+[MIT](LICENSE).
