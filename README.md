@@ -30,7 +30,7 @@ configured to show, with a merge-status badge on every row.
   than being truncated.
 - **Row actions**: check out into a fresh git worktree (for any open PR with a
   branch — yours or others'; an existing worktree at the configured path is
-  reused); **Send to agent** (yours and others'). The clickable title opens the
+  reused); **Copy prompt** / **Send to agent** (see `send_mode`; yours and others'). The clickable title opens the
   PR in Graphite.
 - Pull-request detail status overrides stale section-summary status; completed
   PRs still listed in `Drafts` are omitted.
@@ -91,7 +91,8 @@ falls back to all defaults and surfaces the error in the dock.
 | `gt_path`             | `""`                                                                     | Absolute path to `gt`; empty → resolve via `command -v gt`. |
 | `tern_path`           | `""`                                                                     | Absolute path to `tern`; empty → resolve via `command -v tern`. |
 | `gh_path`             | `""`                                                                     | Absolute path to `gh`; empty → resolve via `command -v gh`. `gh` is optional — used only for unresolved-comment counts; the inbox works without it. |
-| `send_submit_default` | `false`                                                                  | Initial state of the send picker's submit toggle: `false` = paste only (review before sending), `true` = paste + Enter. |
+| `send_mode`           | `"clipboard"`                                                            | What the send buttons do. `"clipboard"` copies the rendered prompt (buttons read **Copy prompt** / **Copy stack prompt**); `"pane"` opens the pane picker (buttons read **Send to agent** / **Send stack to agent**). Any other value falls back to `"clipboard"`. |
+| `send_submit_default` | `false`                                                                  | Initial state of the send picker's submit toggle in `pane` mode: `false` = paste only (review before sending), `true` = paste + Enter. |
 | `transition_toast`    | `false`                                                                  | Toast when a PR newly appears in "Needs your review" or "Returned to you". |
 | `prompts.review`       | `"Review PR #{number} {title} {url}. Don't post comments, just tell me in chat"` | Sent for someone else's PR. |
 | `prompts.address`      | `"Address the requested changes on PR #{number} {url}"`                 | Sent for your own PR. |
@@ -106,7 +107,11 @@ Unknown `{name}` is left as-is; `%` in values is safe.
 
 ## Send to agent
 
-**Send to agent** lists live panes via `tern ls --json`, flags a pane as an agent
+`send_mode` selects what the send buttons do. The default, `"clipboard"`, copies
+the rendered prompt to the clipboard so you can paste it into any agent; it does
+not depend on pane detection. Set `"send_mode": "pane"` for the picker below.
+
+In `pane` mode **Send to agent** lists live panes via `tern ls --json`, flags a pane as an agent
 pane when its lowercased title or program contains any lowercased
 `agent_patterns` entry, defaults to the most recently focused agent pane (else
 the focused pane), and pastes the rendered prompt with

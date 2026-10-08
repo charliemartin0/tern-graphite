@@ -63,14 +63,17 @@ if [ "$expect_match" -lt 1 ] || [ "$expect_other" -lt 1 ]; then
 	exit 1
 fi
 
-# SHOW_CHECKOUT=false seeds config.json with show_checkout_button=false and
-# expects no Checkout badges at all.
+# SHOW_CHECKOUT=false seeds show_checkout_button=false and expects no Checkout
+# badges at all. SEND_MODE=pane seeds send_mode=pane and expects the
+# "Send to agent" label; the default (clipboard) renders "Copy prompt".
 show_checkout="${SHOW_CHECKOUT:-true}"
-if [ "$show_checkout" = "false" ]; then
-	mkdir -p "$state/tern/plugin-data/graphite"
-	printf '{"show_checkout_button": false}\n' >"$state/tern/plugin-data/graphite/config.json"
-	expect_match=0
-fi
+send_mode="${SEND_MODE:-clipboard}"
+send_label="Copy prompt"
+[ "$send_mode" = "pane" ] && send_label="Send to agent"
+[ "$show_checkout" = "false" ] && expect_match=0
+mkdir -p "$state/tern/plugin-data/graphite"
+jq -n --argjson c "$show_checkout" --arg m "$send_mode" '{show_checkout_button: $c, send_mode: $m}' \
+	>"$state/tern/plugin-data/graphite/config.json" || { echo "FAIL: could not seed config.json"; exit 1; }
 
 # Use a fresh daemon so the test loads the linked checkout's current code, and
 # an isolated state dir so user hidden_sections/config cannot affect the oracle.
@@ -102,7 +105,7 @@ a11y=""; sends=0; checkouts=0
 for _ in $(seq 1 60); do
 	kill -0 "$pid" 2>/dev/null || break
 	if a11y=$(tern ctl --control "$sock" a11y 2>/dev/null); then
-		sends=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Send to agent")] | length' 2>/dev/null)
+		sends=$(printf '%s\n' "$a11y" | jq --arg l "$send_label" '[.. | strings | select(. == $l)] | length' 2>/dev/null)
 		[ "$sends" -ge "$expect_total" ] && break
 	fi
 	sleep 0.5
@@ -110,7 +113,7 @@ done
 checkouts=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Checkout")] | length' 2>/dev/null)
 
 if [ "$sends" -lt "$expect_total" ]; then
-	echo "FAIL: fixture did not render (Send to agent rows: $sends, expected >= $expect_total)"
+	echo "FAIL: fixture did not render ($send_label rows: $sends, expected >= $expect_total)"
 	echo "--- tern log ---"; cat "$log"
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
@@ -120,4 +123,4 @@ if [ "$checkouts" -ne "$expect_match" ]; then
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
 fi
-echo "PASS: Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); non-matching branch-bearing open PRs=$expect_other"
+echo "PASS: Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); $send_label badges=$sends (send_mode=$send_mode); non-matching branch-bearing open PRs=$expect_other"
