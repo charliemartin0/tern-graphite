@@ -63,6 +63,15 @@ if [ "$expect_match" -lt 1 ] || [ "$expect_other" -lt 1 ]; then
 	exit 1
 fi
 
+# SHOW_CHECKOUT=false seeds config.json with show_checkout_button=false and
+# expects no Checkout badges at all.
+show_checkout="${SHOW_CHECKOUT:-true}"
+if [ "$show_checkout" = "false" ]; then
+	mkdir -p "$state/tern/plugin-data/graphite"
+	printf '{"show_checkout_button": false}\n' >"$state/tern/plugin-data/graphite/config.json"
+	expect_match=0
+fi
+
 # Use a fresh daemon so the test loads the linked checkout's current code, and
 # an isolated state dir so user hidden_sections/config cannot affect the oracle.
 TERN_DAEMON_SOCKET="$daemon_socket" XDG_STATE_HOME="$state" \
@@ -107,8 +116,8 @@ if [ "$sends" -lt "$expect_total" ]; then
 	exit 1
 fi
 if [ "$checkouts" -ne "$expect_match" ]; then
-	echo "FAIL: Checkout badges=$checkouts, expected $expect_match (matching $focus=$expect_match, non-matching=$expect_other)"
+	echo "FAIL: Checkout badges=$checkouts, expected $expect_match (show_checkout_button=$show_checkout, matching $focus, non-matching=$expect_other)"
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
 fi
-echo "PASS: Checkout badges=$checkouts == matching $focus PRs ($expect_match); non-matching branch-bearing open PRs=$expect_other"
+echo "PASS: Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); non-matching branch-bearing open PRs=$expect_other"

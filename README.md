@@ -85,6 +85,7 @@ falls back to all defaults and surfaces the error in the dock.
 | `pr_title_first`       | `true`                                                                   | Put the PR title on its own first line; `false` appends the configured metadata fields inline after the title. |
 | `pr_metadata_fields`   | `["author","repo","status","age"]`                                      | Metadata fields to display, in order. Allowed: `author`, `repo`, `branch`, `status`, `age`. Add `branch` to show it; `[]` hides all metadata. |
 | `pr_branch_max_chars`  | `36`                                                                     | Maximum displayed branch length when `branch` is included; long names are middle-truncated. Clamped to 12..120. |
+| `show_checkout_button` | `true`                                                                  | Show the per-PR **Checkout** button in the inbox. `false` hides it and the checkout action is rejected. Does not affect the stack tab's `gt checkout`. |
 | `worktree_dir`        | `".gt-worktrees"`                                                        | Subdir under the repo for checkout worktrees. Used only when `worktree_path` is empty (legacy). |
 | `worktree_path`       | `""`                                                                     | Template for the checkout worktree path. Empty → legacy `{repo_root}/{worktree_dir}/{branch}`. When set, substitutes `{repo_root}`, `{repo}`, `{branch}`, `{number}` — e.g. `"{repo_root}/../{repo}-pr{number}"` or `"~/gc/sb-pr{number}"`. |
 | `gt_path`             | `""`                                                                     | Absolute path to `gt`; empty → resolve via `command -v gt`. |
@@ -191,6 +192,7 @@ uses a fresh daemon and isolated state; needs `tern` and `jq`):
 
 ```sh
 bash test/checkout_scope.sh
+SHOW_CHECKOUT=false bash test/checkout_scope.sh   # expects zero Checkout badges
 ```
 
 `window_start` fires once per plugin per window, so the auto-open only triggers
