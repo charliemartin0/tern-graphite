@@ -56,6 +56,22 @@ function M.epoch(iso: string): number
 		+ tonumber(h) :: number * 3600 + tonumber(mi) :: number * 60 + tonumber(s) :: number
 end
 
+-- Expand a leading `~` / `~/` to `home`. git and the pane launcher receive the
+-- path verbatim (no shell), so an unexpanded `~` would create a directory
+-- literally named `~`. Other paths, and `~` with no home set, are unchanged.
+function M.expand_home(path: string, home: string?): string
+	if home == nil or home == "" then
+		return path
+	end
+	if path == "~" then
+		return home
+	end
+	if string.sub(path, 1, 2) == "~/" then
+		return (string.gsub(home, "/+$", "")) .. string.sub(path, 2)
+	end
+	return path
+end
+
 -- Relative age: "3h", "2d", "5w", "3mo".
 function M.age(t: number, now: number): string
 	local s = math.max(0, now - t)
@@ -148,61 +164,71 @@ end
 export type GtBranch = {
 	branch: string,
 	depth: number, -- 0 = top-level (own stack), 1+ = nested
-	pr: number?, -- from (sb-prNNNN) annotation
+	pr: number?, -- from a (pr-NNNN)-style worktree annotation, when gt prints one
 	state: string, -- "frozen"|"needs restack"|""
 	stackId: string, -- shared across one connected stack
 }
 
 -- Parse `gt log short --no-interactive` output into ordered branches with
 -- stack grouping. Branches joined by `│` form one stack; top-level `◯` lines
--- with no children are each their own stack.
+-- with no children are each their own stack. The checked-out branch is drawn
+-- with `◉` instead of `◯`; the trunk line (`◯─┴─┘  <trunk>`) is skipped
+-- whatever the trunk is called. State words and the PR number are read from
+-- the `(...)` annotations only, never from the branch name.
 function M.parse_gt_log(text: string): { GtBranch }
 	local out: { GtBranch } = {}
 	local stackCounter = 0
 	local currentStack = ""
 	for line in string.gmatch(text, "[^\r\n]+") do
-		-- Skip the trunk line "◯─┴─...─┘  main".
-		if string.match(line, "main%s*$") and string.find(line, "┴") then
-			-- no-op
-		else
-			-- Count leading `│` as depth.
-			local prefix, rest = string.match(line, "^([│ ]*)◯%s*(.*)$")
-			if prefix and rest then
-				local depth = 0
-				for _ in string.gmatch(prefix, "│") do
-					depth += 1
-				end
-				-- Branch is the first token, before any " (...)" annotation.
-				local branch = string.match(rest, "^%S+")
-				if branch then
-					-- PR annotation: (sb-prNNNN) or (pr-NNNN) or (action-pr-NNNN).
-					local prAnn = string.match(rest, "sb%-pr(%d+)") or string.match(rest, "pr%-(%d+)") or string.match(rest, "pr(%d+)")
-					local prNum = prAnn and tonumber(prAnn) or nil
-					local state = ""
-					if string.find(rest, "frozen") then
-						state = "frozen"
-					elseif string.find(rest, "needs restack") then
-						state = "needs restack"
+		-- Count leading `│` as depth.
+		local prefix, rest = string.match(line, "^([│ ]*)◯%s*(.*)$")
+		if not prefix then
+			prefix, rest = string.match(line, "^([│ ]*)◉%s*(.*)$")
+		end
+		-- Skip the trunk line "◯─┴─...─┘  main": connectors follow the node.
+		if prefix and rest and not (string.find(rest, "^─") or string.find(rest, "^┴") or string.find(rest, "^┘")) then
+			local depth = 0
+			for _ in string.gmatch(prefix, "│") do
+				depth += 1
+			end
+			-- Branch is the first token, before any " (...)" annotation.
+			local branch = string.match(rest, "^%S+")
+			if branch then
+				local annotations = string.sub(rest, #branch + 1)
+				-- PR annotation: gt prints the branch's worktree name, e.g.
+				-- (pr-123), (sb-pr123) or (action-pr-123). The word must be
+				-- exactly `pr` so names like (expr-5) don't match.
+				local prNum: number? = nil
+				for ann in string.gmatch(annotations, "%(([^)]*)%)") do
+					local n = string.match(ann, "%f[%a]pr%-?(%d+)$")
+					if n then
+						prNum = tonumber(n)
 					end
-					-- Stack assignment: depth 1 starts a new stack; deeper lines join it.
-					-- depth 0 with no following children is its own stack.
-					if depth >= 1 then
-						if depth == 1 or currentStack == "" then
-							stackCounter += 1
-							currentStack = "stack" .. tostring(stackCounter)
-						end
-					else
+				end
+				local state = ""
+				if string.find(annotations, "frozen", 1, true) then
+					state = "frozen"
+				elseif string.find(annotations, "needs restack", 1, true) then
+					state = "needs restack"
+				end
+				-- Stack assignment: depth 1 starts a new stack; deeper lines join it.
+				-- depth 0 with no following children is its own stack.
+				if depth >= 1 then
+					if depth == 1 or currentStack == "" then
 						stackCounter += 1
 						currentStack = "stack" .. tostring(stackCounter)
 					end
-					table.insert(out, {
-						branch = branch,
-						depth = depth,
-						pr = prNum,
-						state = state,
-						stackId = currentStack,
-					})
+				else
+					stackCounter += 1
+					currentStack = "stack" .. tostring(stackCounter)
 				end
+				table.insert(out, {
+					branch = branch,
+					depth = depth,
+					pr = prNum,
+					state = state,
+					stackId = currentStack,
+				})
 			end
 		end
 	end

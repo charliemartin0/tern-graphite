@@ -953,6 +953,7 @@ local function do_checkout(state: State, pr: common.PR)
 			branch = pr.branch,
 			number = tostring(pr.number),
 		})
+		wt = common.expand_home(wt, tern.getenv("HOME"))
 	else
 		wt = r.path .. "/" .. state.cfg.worktree_dir .. "/" .. pr.branch
 	end
