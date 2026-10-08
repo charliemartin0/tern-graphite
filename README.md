@@ -43,7 +43,8 @@ somewhere your login shell doesn't see.
   reused); **Copy prompt** / **Send to agent** (see `send_mode`; yours and
   others'). The clickable title opens the PR in Graphite.
 - Pull-request detail status overrides stale section-summary status; completed
-  PRs still listed in `Drafts` are omitted.
+  PRs still listed in `Drafts` are omitted. Merged and closed rows show only
+  their lifecycle status, not mergeability labels.
 - Merge-status requests are batched at 25 PRs to avoid Graphite rejecting
   large inboxes with HTTP 413. If detail or merge-status enrichment fails,
   the inbox still updates and the footer shows `partial fetch: <reason>`;

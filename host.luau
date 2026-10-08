@@ -492,7 +492,7 @@ local function metadata_field(state: State, pr: common.PR, now: number, field: s
 		return { ui.span(truncate_middle(pr.branch, state.cfg.pr_branch_max_chars), "muted") }
 	elseif field == "status" then
 		local out: { Span | string } = {}
-		if pr.merge then
+		if pr.state == "OPEN" and pr.merge then
 			local label, tone = merge_label(pr.merge)
 			table.insert(out, ui.span(label, tone))
 			if pr.comments ~= nil and pr.comments > 0 and
