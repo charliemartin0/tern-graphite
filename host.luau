@@ -537,6 +537,11 @@ local function send_label(state: State, stack: boolean): string
 	return if stack then "Send stack to agent" else "Send to agent"
 end
 
+local function pr_tour_installed(): boolean
+	local ok, v = pcall(tern.kv.get, "pr_tour")
+	return ok and v == true
+end
+
 local function pr_actions(state: State, pr: common.PR): Node
 	local p = pr.repo .. "/" .. tostring(pr.number)
 	local buttons: { Node } = {}
@@ -544,6 +549,11 @@ local function pr_actions(state: State, pr: common.PR): Node
 	-- Keep the handler-side check too; UI visibility is not authorization.
 	if state.cfg.show_checkout_button and state.repo and pr.repo == state.repo.nwo and pr.branch and pr.branch ~= "" then
 		table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
+	end
+	-- Diff needs no checkout: pr-tour fetches the diff with `gh`, so every PR gets it.
+	-- The window half publishes whether pr-tour is installed; without it the button is hidden.
+	if state.cfg.show_diff_button and pr_tour_installed() then
+		table.insert(buttons, badge("Diff", "diff:" .. p, "muted"))
 	end
 	table.insert(buttons, badge(send_label(state, false), (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
 	return ui.row(buttons)
@@ -902,6 +912,22 @@ local function open_pane(state: State, cwd: string, command: string)
 	end)
 end
 
+-- Asks the window half (via `route.link`, see window.luau) to open the PR in
+-- the pr-tour plugin. A host half can't create blocks itself, so the request
+-- travels as a `tern-graphite://diff/<base64url json>` link through `cx:open`.
+local function do_diff(state: State, pr: common.PR)
+	if not state.cfg.show_diff_button then
+		state.cx:toast("error", "Diff is disabled", "Set show_diff_button to true in config.json.")
+		return
+	end
+	if not pr_tour_installed() then
+		state.cx:toast("error", "pr-tour plugin isn't installed", "Link it: tern plugin link ~/Dev/tern-plugins/pr-tour")
+		return
+	end
+	local payload = tern.json.encode({ repo = pr.repo, number = tostring(pr.number), sha = "", title = pr.title, how = state.cfg.diff_open })
+	state.cx:open("tern-graphite://diff/" .. tern.base64.encode(payload, { url = true }))
+end
+
 local function do_checkout(state: State, pr: common.PR)
 	if not state.cfg.show_checkout_button then
 		state.cx:toast("error", "Checkout is disabled", "Set show_checkout_button to true in config.json.")
@@ -1163,6 +1189,9 @@ local function handle_action(state: State, act: string, cx: BlockCx, ev: UiEvent
 	end
 	if kind == "checkout" then
 		do_checkout(state, pr) return
+	end
+	if kind == "diff" then
+		do_diff(state, pr) return
 	end
 	if kind == "send" or kind == "send-mine" then
 		start_send(state, { pr }, kind == "send-mine")

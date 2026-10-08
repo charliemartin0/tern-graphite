@@ -57,6 +57,51 @@ tern.command({
 	run = open_shot,
 })
 
+-- Diff button: the host half opens `tern-graphite://diff/<base64url json>`
+-- through `cx:open`, which lands here. Opens pr-tour's block in a new tab.
+local DIFF_PREFIX = "tern-graphite://diff/"
+
+tern.route.link(function(link: LinkRequest, cx: WindowCx): RouteDecision?
+	if string.sub(link.url, 1, #DIFF_PREFIX) ~= DIFF_PREFIX then
+		return nil
+	end
+	local ok, d = pcall(function(): any
+		return tern.json.decode(tern.base64.decode(string.sub(link.url, #DIFF_PREFIX + 1)))
+	end)
+	if not ok or type(d) ~= "table" or type(d.repo) ~= "string" or type(d.number) ~= "string" then
+		cx:toast("error", "Bad diff link", "graphite could not decode the diff request.")
+		return { handled = true }
+	end
+	local how: How = "tab"
+	if d.how == "beside" or d.how == "below" then
+		how = d.how
+	end
+	local pane = cx:new_block("pr-tour.tour", { d.repo, d.number, d.sha or "", d.title or "" }, how)
+	if pane == nil then
+		cx:toast("error", "pr-tour plugin isn't installed", "Link it: tern plugin link ~/Dev/tern-plugins/pr-tour")
+	end
+	return { handled = true }
+end)
+
+-- The host half hides the Diff button unless pr-tour is installed, and can't
+-- see other plugins itself: publish whether this window's host has its block.
+local function publish_pr_tour(cx: WindowCx)
+	local found = false
+	local ok, types = pcall(function() return cx.session:block_types() end)
+	if ok and types then
+		for _, t in types do
+			if t.kind == "pr-tour.tour" then
+				found = true
+				break
+			end
+		end
+	end
+	local okg, prev = pcall(tern.kv.get, "pr_tour")
+	if not okg or prev ~= found then
+		pcall(tern.kv.set, "pr_tour", found)
+	end
+end
+
 local function summary(): { [string]: any }?
 	local ok, s = pcall(tern.kv.get, "summary")
 	if ok and type(s) == "table" and type(s.at) == "number" then
@@ -88,8 +133,9 @@ local function arm()
 	if watch ~= nil then
 		return
 	end
-	watch = tern.timer(WATCH_MS, function(_cx)
+	watch = tern.timer(WATCH_MS, function(cx)
 		watch = nil
+		publish_pr_tour(cx)
 		local now = stamp()
 		if now ~= seen then
 			seen = now
@@ -100,6 +146,7 @@ local function arm()
 end
 
 tern.on("window_start", function(cx: WindowCx)
+	publish_pr_tour(cx)
 	seen = stamp()
 	arm()
 	-- Dev convenience: offscreen `tern shot` can't open the palette, so an
