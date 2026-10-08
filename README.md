@@ -148,16 +148,7 @@ The legacy layout puts worktrees inside the repo, where git reports
 
 ## Diff
 
-The **Diff** badge opens the PR in the `pr-tour` plugin (an AI-guided tour of
-the diff) in a new tab, or as a block beside/below the focused pane with
-`diff_open`. It is an optional integration: `pr-tour` is a separate plugin that
-is not part of this repository, and until it is linked into the same Tern
-install (`tern plugin link <path-to-pr-tour>`) the button is **hidden
-entirely**. The window half checks the host's block types on start and every
-30 s, so the button appears within about 30 s of linking and the next inbox
-render. The host half can't create blocks, so it opens a
-`tern-graphite://diff/<base64url json>` link that the window half claims with
-`tern.route.link`.
+The **Diff** badge opens the PR in the public [pr-tour plugin](https://github.com/charliemartin0/tern-pr-tour) (an AI-guided tour of the diff) in a new tab, or as a block beside/below the focused pane with `diff_open`. It needs `pr-tour` linked on the same machine: `tern plugin link <path-to-pr-tour>`. **The button is hidden entirely while pr-tour isn't detected** (the window half checks the host's block types on start and every 30 s, so it appears within about 30 s of linking and the next inbox render). The host half can't create blocks, so it opens a `tern-graphite://diff/<base64url json>` link that the window half claims with `tern.route.link`.
 
 ![Diff button](test/screenshots/diff-button.png)
 
