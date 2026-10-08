@@ -1,6 +1,7 @@
 {
   "acme/widgets": {
     "mergeabilityStatuses": [
+      { "prNumber": 99, "forgeSource": "github", "mergeabilityStatus": "MERGED" },
       { "prNumber": 101, "forgeSource": "github", "mergeabilityStatus": "NEEDS_APPROVALS" },
       { "prNumber": 102, "forgeSource": "github", "mergeabilityStatus": "NEEDS_APPROVALS" },
       { "prNumber": 103, "forgeSource": "github", "mergeabilityStatus": "WAITING_ON_DOWNSTACK" },
