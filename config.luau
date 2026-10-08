@@ -17,6 +17,9 @@ export type Prompts = {
 -- "clipboard": the send buttons copy the prompt. "pane": they open the pane picker.
 export type SendMode = "clipboard" | "pane"
 
+-- Where the Diff button opens the pr-tour block.
+export type DiffOpen = "tab" | "beside" | "below"
+
 export type Config = {
 	poll_seconds: number,
 	max_prs_per_section: number,
@@ -31,6 +34,7 @@ export type Config = {
 	send_mode: SendMode,
 	show_checkout_button: boolean,
 	show_diff_button: boolean,
+	diff_open: DiffOpen,
 	transition_toast: boolean,
 	pr_title_first: boolean,
 	pr_metadata_fields: { string },
@@ -52,6 +56,7 @@ local DEFAULTS: Config = {
 	send_mode = "clipboard",
 	show_checkout_button = true,
 	show_diff_button = true,
+	diff_open = "tab",
 	transition_toast = false,
 	pr_title_first = true,
 	pr_metadata_fields = { "author", "repo", "status", "age" },
@@ -94,6 +99,7 @@ local function defaults_copy(): Config
 		gh_path = d.gh_path,
 		show_checkout_button = d.show_checkout_button,
 		show_diff_button = d.show_diff_button,
+		diff_open = d.diff_open,
 		send_submit_default = d.send_submit_default,
 		send_mode = d.send_mode,
 		transition_toast = d.transition_toast,
@@ -163,6 +169,14 @@ end
 local function send_mode_or(data: any, default: SendMode): SendMode
 	local v = data.send_mode
 	if v == "clipboard" or v == "pane" then
+		return v
+	end
+	return default
+end
+
+local function diff_open_or(data: any, default: DiffOpen): DiffOpen
+	local v = data.diff_open
+	if v == "tab" or v == "beside" or v == "below" then
 		return v
 	end
 	return default
@@ -248,6 +262,7 @@ function M.load(): (Config, string?)
 		gh_path = str_or(data, "gh_path", M.DEFAULTS.gh_path),
 		show_checkout_button = bool_or(data, "show_checkout_button", M.DEFAULTS.show_checkout_button),
 		show_diff_button = bool_or(data, "show_diff_button", M.DEFAULTS.show_diff_button),
+		diff_open = diff_open_or(data, M.DEFAULTS.diff_open),
 		send_submit_default = (function(): boolean
 			local v = data.send_submit_default
 			if type(v) == "boolean" then return v end

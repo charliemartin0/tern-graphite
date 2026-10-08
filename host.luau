@@ -537,6 +537,11 @@ local function send_label(state: State, stack: boolean): string
 	return if stack then "Send stack to agent" else "Send to agent"
 end
 
+local function pr_tour_installed(): boolean
+	local ok, v = pcall(tern.kv.get, "pr_tour")
+	return ok and v == true
+end
+
 local function pr_actions(state: State, pr: common.PR): Node
 	local p = pr.repo .. "/" .. tostring(pr.number)
 	local buttons: { Node } = {}
@@ -546,7 +551,8 @@ local function pr_actions(state: State, pr: common.PR): Node
 		table.insert(buttons, badge("Checkout", "checkout:" .. p, "muted"))
 	end
 	-- Diff needs no checkout: pr-tour fetches the diff with `gh`, so every PR gets it.
-	if state.cfg.show_diff_button then
+	-- The window half publishes whether pr-tour is installed; without it the button is hidden.
+	if state.cfg.show_diff_button and pr_tour_installed() then
 		table.insert(buttons, badge("Diff", "diff:" .. p, "muted"))
 	end
 	table.insert(buttons, badge(send_label(state, false), (if pr.mine then "send-mine:" else "send:") .. p, "accent"))
@@ -914,7 +920,11 @@ local function do_diff(state: State, pr: common.PR)
 		state.cx:toast("error", "Diff is disabled", "Set show_diff_button to true in config.json.")
 		return
 	end
-	local payload = tern.json.encode({ repo = pr.repo, number = tostring(pr.number), sha = "", title = pr.title })
+	if not pr_tour_installed() then
+		state.cx:toast("error", "pr-tour plugin isn't installed", "Link it: tern plugin link ~/Dev/tern-plugins/pr-tour")
+		return
+	end
+	local payload = tern.json.encode({ repo = pr.repo, number = tostring(pr.number), sha = "", title = pr.title, how = state.cfg.diff_open })
 	state.cx:open("tern-graphite://diff/" .. tern.base64.encode(payload, { url = true }))
 end
 

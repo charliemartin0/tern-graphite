@@ -16,13 +16,18 @@ daemon_pid=""
 trap 'rm -rf "$tmp"' EXIT
 
 mkdir -p "$state"
-plugin_dir=$(tern plugin dir) || exit 1
-linked="$plugin_dir/graphite.path"
-if [ ! -f "$linked" ] || [ "$(cat "$linked")" != "$root" ]; then
-	echo "FAIL: graphite is not linked to this checkout ($root)"
-	echo "Link it with: tern plugin link \"$root\""
-	exit 1
+# Private plugin dir: graphite linked to this checkout, and pr-tour (the Diff
+# button target) unless PR_TOUR=absent. Never touches the user's plugin links.
+cfg="$tmp/cfg"
+mkdir -p "$cfg/plugins"
+printf '%s' "$root" >"$cfg/plugins/graphite.path"
+pr_tour="${PR_TOUR:-linked}"
+if [ "$pr_tour" != "absent" ]; then
+	pr_tour_dir="${PR_TOUR_DIR:-$root/../pr-tour}"
+	[ -f "$pr_tour_dir/plugin.toml" ] || { echo "FAIL: pr-tour not found at $pr_tour_dir (set PR_TOUR_DIR, or PR_TOUR=absent)"; exit 1; }
+	printf '%s' "$(cd "$pr_tour_dir" && pwd -P)" >"$cfg/plugins/pr-tour.path"
 fi
+export TERN_CONFIG_DIR="$cfg"
 
 cleanup() {
 	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -72,11 +77,12 @@ send_label="Copy prompt"
 [ "$send_mode" = "pane" ] && send_label="Send to agent"
 # SHOW_DIFF=false seeds show_diff_button=false and expects no Diff badges; the
 # default expects one Diff badge per rendered open PR (no branch/repo condition).
+# PR_TOUR=absent leaves pr-tour unlinked and expects no Diff badges either.
 show_diff="${SHOW_DIFF:-true}"
 [ "$show_checkout" = "false" ] && expect_match=0
-mkdir -p "$state/tern/plugin-data/graphite"
+mkdir -p "$cfg/plugin-data/graphite"
 jq -n --argjson c "$show_checkout" --argjson d "$show_diff" --arg m "$send_mode" '{show_checkout_button: $c, show_diff_button: $d, send_mode: $m}' \
-	>"$state/tern/plugin-data/graphite/config.json" || { echo "FAIL: could not seed config.json"; exit 1; }
+	>"$cfg/plugin-data/graphite/config.json" || { echo "FAIL: could not seed config.json"; exit 1; }
 
 # Use a fresh daemon so the test loads the linked checkout's current code, and
 # an isolated state dir so user hidden_sections/config cannot affect the oracle.
@@ -117,6 +123,7 @@ checkouts=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Checkout")]
 diffs=$(printf '%s\n' "$a11y" | jq '[.. | strings | select(. == "Diff")] | length' 2>/dev/null)
 expect_diff=$sends
 [ "$show_diff" = "false" ] && expect_diff=0
+[ "$pr_tour" = "absent" ] && expect_diff=0
 
 if [ "$sends" -lt "$expect_total" ]; then
 	echo "FAIL: fixture did not render ($send_label rows: $sends, expected >= $expect_total)"
@@ -134,4 +141,4 @@ if [ "$diffs" -ne "$expect_diff" ]; then
 	echo "--- a11y ---"; printf '%s\n' "$a11y"
 	exit 1
 fi
-echo "PASS: Diff badges=$diffs == $expect_diff (show_diff_button=$show_diff); Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); $send_label badges=$sends (send_mode=$send_mode); non-matching branch-bearing open PRs=$expect_other"
+echo "PASS: Diff badges=$diffs == $expect_diff (show_diff_button=$show_diff, pr-tour $pr_tour); Checkout badges=$checkouts == $expect_match (show_checkout_button=$show_checkout); $send_label badges=$sends (send_mode=$send_mode); non-matching branch-bearing open PRs=$expect_other"
